@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:google_fonts/google_fonts.dart';
 
+import 'core/theme/app_theme.dart';
+import 'presentation/pages/add_medication.dart';
 import 'presentation/pages/auth_gate.dart';
 import 'firebase_options.dart';
 
@@ -17,8 +20,30 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Pillura-Med',
-      theme: ThemeData(),
-      home: const AuthGate(),
+      theme: AppTheme.light,
+      home: AddMedicationPage(), //AddMedicationPage(),
+    );
+  }
+}
+
+class MyWidget extends StatelessWidget {
+  const MyWidget({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Google Fonts Example', style: GoogleFonts.lato()),
+      ),
+      body: Center(
+        child: DropdownMenu(
+          dropdownMenuEntries: [
+            DropdownMenuEntry(value: Colors.red, label: 'Красный'),
+            DropdownMenuEntry(value: Colors.green, label: 'Зелёный'),
+            DropdownMenuEntry(value: Colors.blue, label: 'Синий'),
+          ],
+        ),
+      ),
     );
   }
 }
