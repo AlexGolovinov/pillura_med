@@ -167,6 +167,11 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
 
   Widget dropdownInterval() {
     return DropdownMenu<RepeatRuleType>(
+      inputDecorationTheme: InputDecorationTheme(
+        isDense: true,
+        constraints: BoxConstraints.tight(const Size.fromHeight(41)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      ),
       alignmentOffset: Offset(10, 8),
       key: Key(_dropdownKey), // сброс состояния при изменении выбора
       hintText: 'Выберите интервал',
