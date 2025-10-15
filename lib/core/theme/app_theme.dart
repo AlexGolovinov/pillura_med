@@ -17,6 +17,7 @@ class AppTheme {
           color: Color(0xFF202D85),
         ),
       ),
+      primaryColor: Color(0xFF202D85),
       scaffoldBackgroundColor: Colors.white,
       textTheme: baseTextTheme.copyWith(
         // Заголовки (bold)

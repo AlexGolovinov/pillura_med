@@ -5,7 +5,6 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'core/theme/app_theme.dart';
 import 'presentation/pages/add_medication.dart';
-import 'presentation/pages/auth_gate.dart';
 import 'firebase_options.dart';
 
 void main() async {

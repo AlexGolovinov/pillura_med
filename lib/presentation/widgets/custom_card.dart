@@ -4,6 +4,7 @@ Widget customCard({required String title, required bool isSelected}) {
   return SizedBox(
     height: 41,
     child: Card(
+      margin: EdgeInsets.zero,
       color: isSelected ? const Color(0xFF4459D4) : Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: Padding(

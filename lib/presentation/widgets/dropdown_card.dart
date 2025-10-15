@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 
 class DropdownCard<T> extends StatelessWidget {
   final List<DropdownMenuEntry<T>> items;
