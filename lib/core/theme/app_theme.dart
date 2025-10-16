@@ -17,6 +17,7 @@ class AppTheme {
           color: Color(0xFF202D85),
         ),
       ),
+
       primaryColor: Color(0xFF202D85),
       scaffoldBackgroundColor: Colors.white,
       textTheme: baseTextTheme.copyWith(
@@ -62,7 +63,12 @@ class AppTheme {
       ),
 
       inputDecorationTheme: InputDecorationTheme(
-        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        isDense: true,
+        constraints: BoxConstraints(minHeight: 41),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 10,
+          horizontal: 12,
+        ),
         labelStyle: GoogleFonts.openSans(
           fontWeight: FontWeight.w700, // semi-bold для лейблов
           fontSize: 14,
