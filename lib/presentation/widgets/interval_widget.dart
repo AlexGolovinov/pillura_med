@@ -5,8 +5,8 @@ import '../../domain/enums/weekday.dart';
 import 'custom_card.dart';
 
 class IntervalWidget extends StatefulWidget {
-  void Function(RepeatRuleType?)? onSaved;
-  IntervalWidget({super.key, this.onSaved});
+  final void Function(RepeatRuleType?)? onSaved;
+  const IntervalWidget({super.key, this.onSaved});
 
   @override
   State<IntervalWidget> createState() => _IntervalWidgetState();

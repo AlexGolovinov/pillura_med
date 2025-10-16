@@ -7,7 +7,7 @@ import 'input_block.dart';
 class DosageWidget extends StatefulWidget {
   final void Function(DosageType?)? onSavedType;
   final void Function(int?)? onSavedDosage;
-  DosageWidget({super.key, this.onSavedType, this.onSavedDosage});
+  const DosageWidget({super.key, this.onSavedType, this.onSavedDosage});
 
   @override
   State<DosageWidget> createState() => _DosageWidgetState();
