@@ -77,7 +77,7 @@ class Medication {
         type: RepeatRuleType.values.firstWhere(
           (e) => e.label == json['repeatRule']['type'],
         ),
-        intervalDays: json['repeatRule']['intervalDays'] as int?,
+        //intervalDays: json['repeatRule']['intervalDays'] as int?,
         weekdays: (json['repeatRule']['weekdays'] as List<dynamic>?)
             ?.map(
               (day) => Weekday.values.firstWhere((e) => e.shortLabel == day),
@@ -105,7 +105,7 @@ class Medication {
       'intakeTime': intakeTime.map((t) => '${t.hour}:${t.minute}').toList(),
       'repeatRule': {
         'type': repeatRule.type.label,
-        'intervalDays': repeatRule.intervalDays,
+        //'intervalDays': repeatRule.intervalDays,
         'weekdays': repeatRule.weekdays?.map((d) => d.shortLabel).toList(),
       },
       'photoUrl': photoUrl,

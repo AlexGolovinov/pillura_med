@@ -11,6 +11,7 @@ import 'package:pillura_med/presentation/widgets/interval_widget.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
 import 'package:pillura_med/presentation/widgets/meal_relation_widget.dart';
 
+import '../../domain/entities/repeat_rule.dart';
 import '../../domain/enums/repeat_rule_type.dart';
 import '../widgets/automatic_interval_widget.dart';
 import '../widgets/manual_intake_widget.dart';
@@ -30,7 +31,7 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
   int? _dosage;
   DosageType? _selectedDosageType;
   MealRelation? _selectedMealRelation;
-  RepeatRuleType? _selectedInterval;
+  RepeatRule? _selectedInterval;
   List<TimeOfDay?>? intakeTime;
 
   CourseDuration? _selectedCourseDuration = CourseDuration.day;

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/entities/repeat_rule.dart';
 import '../../domain/enums/repeat_rule_type.dart';
 import '../../domain/enums/weekday.dart';
 import 'custom_card.dart';
 
 class IntervalWidget extends StatefulWidget {
-  final void Function(RepeatRuleType?)? onSaved;
+  final void Function(RepeatRule?)? onSaved;
   const IntervalWidget({super.key, this.onSaved});
 
   @override
@@ -17,7 +18,7 @@ class _IntervalWidgetState extends State<IntervalWidget> {
   String _dropdownKey = '1';
   @override
   Widget build(BuildContext context) {
-    return FormField<RepeatRuleType?>(
+    return FormField<RepeatRule?>(
       validator: (value) {
         if (value == null) {
           return 'Выберите интервал приема лекарства';
@@ -36,7 +37,7 @@ class _IntervalWidgetState extends State<IntervalWidget> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           DropdownMenu<RepeatRuleType?>(
-            initialSelection: state.value,
+            initialSelection: state.value?.type,
             menuHeight: 300,
             inputDecorationTheme: InputDecorationTheme(
               isDense: true,
@@ -70,8 +71,8 @@ class _IntervalWidgetState extends State<IntervalWidget> {
               if (value != RepeatRuleType.weekly) {
                 // только обычные варианты кликаются
                 setState(() {
-                  state.didChange(value);
                   _days.clear();
+                  state.didChange(RepeatRule(type: value!));
                 });
               }
               // если weekly — игнорируем здесь, выбор будет через дни
@@ -90,7 +91,7 @@ class _IntervalWidgetState extends State<IntervalWidget> {
                     Text(
                       RepeatRuleType.everyDay.label,
                       style: TextStyle(
-                        fontWeight: state.value == RepeatRuleType.everyDay
+                        fontWeight: state.value?.type == RepeatRuleType.everyDay
                             ? FontWeight.bold
                             : FontWeight.normal,
                       ),
@@ -113,7 +114,8 @@ class _IntervalWidgetState extends State<IntervalWidget> {
                     Text(
                       RepeatRuleType.everyOtherDay.label,
                       style: TextStyle(
-                        fontWeight: state.value == RepeatRuleType.everyOtherDay
+                        fontWeight:
+                            state.value?.type == RepeatRuleType.everyOtherDay
                             ? FontWeight.bold
                             : FontWeight.normal,
                       ),
@@ -133,7 +135,7 @@ class _IntervalWidgetState extends State<IntervalWidget> {
                     Text(
                       RepeatRuleType.weekly.label,
                       style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                        fontWeight: state.value == RepeatRuleType.weekly
+                        fontWeight: state.value?.type == RepeatRuleType.weekly
                             ? FontWeight.bold
                             : FontWeight.normal,
                       ),
@@ -151,6 +153,22 @@ class _IntervalWidgetState extends State<IntervalWidget> {
                               setState(() {
                                 if (isSelected) {
                                   _days.remove(e.index);
+                                  state.didChange(
+                                    _days.isEmpty
+                                        ? null
+                                        : RepeatRule(
+                                            type: RepeatRuleType.weekly,
+                                            weekdays: _days
+                                                .map(
+                                                  (index) =>
+                                                      Weekday.values.firstWhere(
+                                                        (wd) =>
+                                                            wd.index == index,
+                                                      ),
+                                                )
+                                                .toList(),
+                                          ),
+                                  );
                                   if (_days.isEmpty) {
                                     _dropdownKey = UniqueKey()
                                         .toString(); // сброс состояния DropdownMenu
@@ -158,7 +176,19 @@ class _IntervalWidgetState extends State<IntervalWidget> {
                                   }
                                 } else {
                                   _days.add(e.index);
-                                  state.didChange(RepeatRuleType.weekly);
+                                  state.didChange(
+                                    RepeatRule(
+                                      type: RepeatRuleType.weekly,
+                                      weekdays: _days
+                                          .map(
+                                            (index) =>
+                                                Weekday.values.firstWhere(
+                                                  (wd) => wd.index == index,
+                                                ),
+                                          )
+                                          .toList(),
+                                    ),
+                                  );
                                 }
                               });
                             },
