@@ -17,7 +17,7 @@ class Medication {
   final MealRelation mealRelation;
   final CourseDuration? durationTaking;
   final bool withBreak;
-  final CourseDuration durationBreak;
+  final CourseDuration? durationBreak;
   final double dosage;
   final DosageType dosageType;
   final List<TimeOfDay> intakeTime;
@@ -99,7 +99,7 @@ class Medication {
       'mealRelation': mealRelation.label,
       'durationTaking': durationTaking?.label,
       'withBreak': withBreak,
-      'durationBreak': durationBreak.label,
+      'durationBreak': durationBreak?.label,
       'dosage': dosage,
       'dosageType': dosageType.label,
       'intakeTime': intakeTime.map((t) => '${t.hour}:${t.minute}').toList(),

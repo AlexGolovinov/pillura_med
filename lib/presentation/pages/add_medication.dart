@@ -31,6 +31,7 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
   DosageType? _selectedDosageType;
   MealRelation? _selectedMealRelation;
   RepeatRuleType? _selectedInterval;
+  List<TimeOfDay?>? intakeTime;
 
   CourseDuration? _selectedCourseDuration = CourseDuration.day;
   CourseDuration? _selectedCourseBreak = CourseDuration.day;
@@ -41,11 +42,7 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
   int selectedPicker = 0;
 
   void _addMedicine() {
-    log('Название: $_name');
-    log('Количество: $_dosage');
-    log('Тип дозировки: $_selectedDosageType');
-    log('Прием относительно еды: $_selectedMealRelation');
-    log('Интервал приема: $_selectedInterval');
+    log('Не прошел валидацию');
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
       log('Название: $_name');
@@ -53,7 +50,8 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
       log('Тип дозировки: $_selectedDosageType');
       log('Прием относительно еды: $_selectedMealRelation');
       log('Интервал приема: $_selectedInterval');
-      _formKey.currentState!.reset();
+      log('Время приема: $intakeTime');
+      //_formKey.currentState!.reset();
       // Тут можно локально сохранить данные или вызвать колбек
       ScaffoldMessenger.of(
         context,
@@ -161,8 +159,16 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
                     ),
                     SizedBox(height: 8),
                     switchAuto == false
-                        ? ManualIntakeWidget()
-                        : AutomaticIntervalWidget(),
+                        ? ManualIntakeWidget(
+                            onSaved: (newValue) {
+                              intakeTime = newValue;
+                            },
+                          )
+                        : AutomaticIntervalWidget(
+                            onSaved: (newValue) {
+                              intakeTime = newValue;
+                            },
+                          ),
 
                     SizedBox(height: 24),
                     ExpansionTile(
