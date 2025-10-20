@@ -3,7 +3,6 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter_switch/flutter_switch.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:pillura_med/domain/enums/course_duration.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/domain/enums/meal_relation.dart';
 import 'package:pillura_med/presentation/widgets/dosage_widget.dart';
@@ -11,11 +10,11 @@ import 'package:pillura_med/presentation/widgets/interval_widget.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
 import 'package:pillura_med/presentation/widgets/meal_relation_widget.dart';
 
+import '../../domain/entities/course_duration.dart';
 import '../../domain/entities/repeat_rule.dart';
-import '../../domain/enums/repeat_rule_type.dart';
 import '../widgets/automatic_interval_widget.dart';
+import '../widgets/course_duration_widget.dart';
 import '../widgets/manual_intake_widget.dart';
-import '../widgets/custom_card.dart';
 
 class AddMedicationPage extends StatefulWidget {
   const AddMedicationPage({super.key});
@@ -34,15 +33,20 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
   RepeatRule? _selectedInterval;
   List<TimeOfDay?>? intakeTime;
 
-  CourseDuration? _selectedCourseDuration = CourseDuration.day;
-  CourseDuration? _selectedCourseBreak = CourseDuration.day;
-  final List<CourseDuration> _courseDuration = CourseDuration.values;
+  CourseDuration? durationTaking;
+  CourseDuration? durationBreak;
+  String? reason;
+  String? symptoms;
+  Color? selectedColor;
 
   bool switchAuto = false;
   bool switchWithBreak = false;
-  int selectedPicker = 0;
+  int? selectedPicker;
 
   void _addMedicine() {
+    if (!switchWithBreak) {
+      durationBreak = null;
+    }
     log('Не прошел валидацию');
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
@@ -52,6 +56,11 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
       log('Прием относительно еды: $_selectedMealRelation');
       log('Интервал приема: $_selectedInterval');
       log('Время приема: $intakeTime');
+      log('Длительность приема: ${durationTaking?.toJson()}');
+      log('Длительность перерыва: ${durationBreak?.toJson()}');
+      log('Причина приема: $reason');
+      log('Симптомы: $symptoms');
+      log('Цвет: ${selectedColor?.toARGB32()}');
       //_formKey.currentState!.reset();
       // Тут можно локально сохранить данные или вызвать колбек
       ScaffoldMessenger.of(
@@ -173,6 +182,7 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
 
                     SizedBox(height: 24),
                     ExpansionTile(
+                      maintainState: true,
                       expandedCrossAxisAlignment: CrossAxisAlignment.start,
                       collapsedBackgroundColor: Color(0xFFF5F7FF),
                       backgroundColor: Color(0xFFF5F7FF),
@@ -233,126 +243,27 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
                                   : null,
                             ),
                             SizedBox(width: 8),
-                            GestureDetector(
-                              onTap: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (_) => AlertDialog(
-                                    title: const Text('Информация'),
-                                    content: Text.rich(
-                                      TextSpan(
-                                        children: [
-                                          TextSpan(
-                                            text: 'Разовый прием: ',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          TextSpan(
-                                            text:
-                                                ' принимаю лекарство непрерывно (например, 7 дней или 1 месяц)\n\n',
-                                          ),
-                                          TextSpan(
-                                            text: 'С перерывом: ',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          TextSpan(
-                                            text:
-                                                'принимаю курсами (например, 5 дней приём → 2 дня перерыв) Когда закончится прием вы самостоятельно нажмете завершить. А так будет повторятся всегда 5 дней прием, 2 перерыв',
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(context),
-                                        child: const Text('Понятно'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                              child: Icon(
-                                Icons.info_outline,
-                                color: Colors.grey,
-                              ),
-                            ),
+                            showInfoAboutBreak(context),
                           ],
                         ),
                         SizedBox(height: 24),
-                        Text(
-                          'Длительность приема',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        SizedBox(height: 8),
-                        SizedBox(
-                          height: 41,
-                          child: TextFormField(
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              hintText: 'Введите количество',
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _courseDuration
-                              .map(
-                                (e) => GestureDetector(
-                                  onTap: () => setState(() {
-                                    _selectedCourseDuration = e;
-                                  }),
-                                  child: customCard(
-                                    title: e.label,
-                                    isSelected: _selectedCourseDuration == e,
-                                  ),
-                                ),
-                              )
-                              .toList(),
+                        CourseDurationWidget(
+                          title: 'Длительность приема',
+                          withBreak: switchWithBreak,
+                          onSaved: (courseIntake) {
+                            durationTaking = courseIntake;
+                          },
                         ),
                         switchWithBreak
                             ? Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   SizedBox(height: 24),
-                                  Text(
-                                    'Длительность перерыва',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
-                                  ),
-                                  SizedBox(height: 8),
-                                  SizedBox(
-                                    height: 41,
-                                    child: TextFormField(
-                                      keyboardType: TextInputType.number,
-                                      decoration: InputDecoration(
-                                        hintText: 'Введите количество',
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: _courseDuration
-                                        .map(
-                                          (e) => GestureDetector(
-                                            onTap: () => setState(() {
-                                              _selectedCourseBreak = e;
-                                            }),
-                                            child: customCard(
-                                              title: e.label,
-                                              isSelected:
-                                                  _selectedCourseBreak == e,
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
+                                  CourseDurationWidget(
+                                    title: 'Длительность перерыва',
+                                    withBreak: switchWithBreak,
+                                    onSaved: (courseBreak) {
+                                      durationBreak = courseBreak;
+                                    },
                                   ),
                                 ],
                               )
@@ -394,47 +305,21 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
                         SizedBox(
                           height: 41,
                           child: TextFormField(
-                            keyboardType: TextInputType.number,
                             decoration: InputDecoration(
                               hintText: 'Грипп, ангина...',
                             ),
+                            onSaved: (value) {
+                              reason = value;
+                            },
                           ),
                         ),
                         SizedBox(height: 24),
-                        Text(
-                          'Симптомы(с чем помогает это лекарство)',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        SizedBox(height: 8),
-                        SizedBox(
-                          height: 41,
-                          child: TextFormField(
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              hintText: 'боль в горле, кашель...',
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 24),
-                        Text(
-                          'Добавить фото лекарства',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        SizedBox(height: 8),
-                        SizedBox(
-                          height: 100,
-                          width: 100,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.black12),
-                            ),
-                            child: IconButton(
-                              onPressed: () {},
-                              icon: Icon(Icons.camera_alt_outlined, size: 30),
-                              color: Colors.black12,
-                            ),
-                          ),
+                        InputBlock(
+                          title: 'Симптомы(с чем помогает это лекарство)',
+                          hintText: 'боль в горле, кашель...',
+                          onSaved: (value) {
+                            symptoms = value;
+                          },
                         ),
                         SizedBox(height: 24),
                         Text(
@@ -442,7 +327,7 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         SizedBox(height: 8),
-                        Container(child: colorPicker()),
+                        colorPicker(),
                         SizedBox(height: 8),
                       ],
                     ),
@@ -513,25 +398,82 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
         scrollDirection: Axis.horizontal,
         itemCount: colors.length,
         itemBuilder: (context, index) {
-          return GestureDetector(
-            onTap: () {
-              // Handle color selection
-            },
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: Container(
-                width: 41,
-                height: 41,
-                decoration: BoxDecoration(
-                  color: colors[index],
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.black12),
-                ),
+          return Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  if (selectedPicker == index) {
+                    selectedPicker = null;
+                    selectedColor = null;
+                  } else {
+                    selectedPicker = index;
+                    selectedColor = colors[index];
+                  }
+                });
+              },
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 41,
+                    height: 41,
+                    decoration: BoxDecoration(
+                      color: colors[index],
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.black12),
+                    ),
+                  ),
+                  if (selectedPicker == index)
+                    const Icon(Icons.check, color: Colors.black, size: 28),
+                ],
               ),
             ),
           );
         },
       ),
+    );
+  }
+
+  GestureDetector showInfoAboutBreak(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Информация'),
+            content: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'Разовый прием: ',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  TextSpan(
+                    text:
+                        ' принимаю лекарство непрерывно (например, 7 дней или 1 месяц)\n\n',
+                  ),
+                  TextSpan(
+                    text: 'С перерывом: ',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  TextSpan(
+                    text:
+                        'принимаю курсами (например, 5 дней приём → 2 дня перерыв) Когда закончится прием вы самостоятельно нажмете завершить. А так будет повторятся всегда 5 дней прием, 2 перерыв',
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Понятно'),
+              ),
+            ],
+          ),
+        );
+      },
+      child: Icon(Icons.info_outline, color: Colors.grey),
     );
   }
 }

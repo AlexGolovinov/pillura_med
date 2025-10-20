@@ -44,29 +44,30 @@ class _ManualIntakeWidgetState extends State<ManualIntakeWidget> {
       });
 
       if (isTooClose) {
-        showDialog(
-          context: context,
-          builder: (context) {
-            return AlertDialog(
-              title: const Text('Некорректное время'),
-              content: const Text(
-                'Минимальная разница между временем — 5 минут',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('ОК'),
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text('Некорректное время'),
+                content: const Text(
+                  'Минимальная разница между временем — 5 минут',
                 ),
-              ],
-            );
-          },
-        );
-        return;
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('ОК'),
+                  ),
+                ],
+              );
+            },
+          );
+          return;
+        }
       }
       // Добавляем и сортируем по возрастанию
       times.add(time);
       times.sort((a, b) {
-        if (a == null || b == null) return 0;
         final aMinutes = a.hour * 60 + a.minute;
         final bMinutes = b.hour * 60 + b.minute;
         return aMinutes.compareTo(bMinutes);

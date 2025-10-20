@@ -1,28 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
-import 'package:pillura_med/domain/enums/course_duration.dart';
 import 'package:pillura_med/domain/enums/meal_relation.dart';
 import 'package:pillura_med/domain/enums/weekday.dart';
 
 import '../enums/repeat_rule_type.dart';
+import 'course_duration.dart';
 import 'repeat_rule.dart';
 
 class Medication {
   final String id;
   final String userId;
-  final String reason;
   final String name;
-  final DateTime startDate;
-  final DateTime? endDate;
+  final double dosage;
+  final DosageType dosageType;
   final MealRelation mealRelation;
+  final RepeatRule repeatRule;
+  final List<TimeOfDay> intakeTime;
   final CourseDuration? durationTaking;
   final bool withBreak;
   final CourseDuration? durationBreak;
-  final double dosage;
-  final DosageType dosageType;
-  final List<TimeOfDay> intakeTime;
-  final RepeatRule repeatRule;
+  final String? reason;
+  final String? symptoms;
   final String? photoUrl;
+  final Color? color;
+  final DateTime startDate;
+  final DateTime? endDate;
 
   Medication({
     required this.id,
@@ -40,6 +42,8 @@ class Medication {
     required this.intakeTime,
     required this.repeatRule,
     this.photoUrl,
+    this.symptoms,
+    this.color,
   });
 
   factory Medication.fromJson(Map<String, dynamic> json) {
@@ -55,13 +59,9 @@ class Medication {
       mealRelation: MealRelation.values.firstWhere(
         (e) => e.label == json['mealRelation'],
       ),
-      durationTaking: CourseDuration.values.firstWhere(
-        (e) => e.label == json['durationTaking'],
-      ),
+      durationTaking: CourseDuration.fromJson(json['courseDuration'] ?? {}),
       withBreak: json['withBreak'] as bool,
-      durationBreak: CourseDuration.values.firstWhere(
-        (e) => e.label == json['durationBreak'],
-      ),
+      durationBreak: CourseDuration.fromJson(json['courseDuration'] ?? {}),
       dosage: json['dosage'] as double,
       dosageType: DosageType.values.firstWhere(
         (e) => e.label == json['dosageType'],
@@ -84,6 +84,7 @@ class Medication {
             )
             .toList(),
       ),
+      symptoms: json['symptoms'] as String?,
       photoUrl: json['photoUrl'] as String?,
     );
   }
@@ -97,9 +98,9 @@ class Medication {
       'startDate': startDate.toIso8601String(),
       'endDate': endDate?.toIso8601String(),
       'mealRelation': mealRelation.label,
-      'durationTaking': durationTaking?.label,
+      'durationTaking': durationTaking?.toJson(),
       'withBreak': withBreak,
-      'durationBreak': durationBreak?.label,
+      'durationBreak': durationBreak?.toJson(),
       'dosage': dosage,
       'dosageType': dosageType.label,
       'intakeTime': intakeTime.map((t) => '${t.hour}:${t.minute}').toList(),
@@ -108,6 +109,7 @@ class Medication {
         //'intervalDays': repeatRule.intervalDays,
         'weekdays': repeatRule.weekdays?.map((d) => d.shortLabel).toList(),
       },
+      'symptoms': symptoms,
       'photoUrl': photoUrl,
     };
   }
