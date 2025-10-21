@@ -11,4 +11,15 @@ extension CourseDurationUnitLabel on CourseDurationUnit {
         return 'Месяц';
     }
   }
+
+  String get shortLabel {
+    switch (this) {
+      case CourseDurationUnit.day:
+        return 'дн.';
+      case CourseDurationUnit.week:
+        return 'нед.';
+      case CourseDurationUnit.month:
+        return 'мес.';
+    }
+  }
 }

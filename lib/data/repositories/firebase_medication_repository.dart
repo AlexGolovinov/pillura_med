@@ -21,10 +21,19 @@ class FirebaseMedicationRepository implements MedicationRepository {
 
   @override
   Future<void> add(Medication medication) async {
-    await firestore
-        .collection(medicationsCollection)
-        .doc(medication.id)
-        .set(medication.toJson());
+    final collection = firestore.collection('medications');
+    final docRef = collection.doc(); // создаём ID локально
+
+    final medWithId = medication.copyWith(id: docRef.id);
+
+    await docRef.set(medWithId.toJson());
+    // final collection = firestore.collection('medications');
+
+    // // создаём новый документ (с auto id)
+    // final docRef = await collection.add({...medication.toJson()});
+
+    // // теперь обновляем id в документе (чтобы Firestore и локальная модель совпадали)
+    // await docRef.update({'id': docRef.id});
   }
 
   @override

@@ -6,7 +6,7 @@ import 'input_block.dart';
 
 class DosageWidget extends StatefulWidget {
   final void Function(DosageType?)? onSavedType;
-  final void Function(int?)? onSavedDosage;
+  final void Function(double?)? onSavedDosage;
   const DosageWidget({super.key, this.onSavedType, this.onSavedDosage});
 
   @override
@@ -56,7 +56,7 @@ class _DosageWidgetState extends State<DosageWidget> {
               },
               onSaved: (value) {
                 widget.onSavedDosage?.call(
-                  value == null ? null : int.parse(value),
+                  value == null ? null : double.parse(value),
                 );
               },
             ),

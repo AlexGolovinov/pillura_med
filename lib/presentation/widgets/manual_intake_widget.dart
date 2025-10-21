@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'custom_card.dart';
 
 class ManualIntakeWidget extends StatefulWidget {
-  final FormFieldSetter<List<TimeOfDay?>>? onSaved;
+  final FormFieldSetter<List<TimeOfDay>>? onSaved;
   const ManualIntakeWidget({super.key, this.onSaved});
 
   @override

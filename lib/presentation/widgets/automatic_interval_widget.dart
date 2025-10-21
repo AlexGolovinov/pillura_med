@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:pillura_med/presentation/widgets/custom_card.dart';
 
 class AutomaticIntervalWidget extends StatefulWidget {
-  final FormFieldSetter<List<TimeOfDay?>>? onSaved;
+  final FormFieldSetter<List<TimeOfDay>>? onSaved;
 
   const AutomaticIntervalWidget({super.key, this.onSaved});
 

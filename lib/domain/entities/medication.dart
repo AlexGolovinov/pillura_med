@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:copy_with_extension/copy_with_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/domain/enums/meal_relation.dart';
@@ -7,6 +9,9 @@ import '../enums/repeat_rule_type.dart';
 import 'course_duration.dart';
 import 'repeat_rule.dart';
 
+part 'medication.g.dart';
+
+@CopyWith()
 class Medication {
   final String id;
   final String userId;
@@ -22,28 +27,28 @@ class Medication {
   final String? reason;
   final String? symptoms;
   final String? photoUrl;
-  final Color? color;
+  final int? color;
   final DateTime startDate;
   final DateTime? endDate;
 
   Medication({
     required this.id,
     required this.userId,
-    required this.reason,
     required this.name,
-    required this.startDate,
-    this.endDate,
-    required this.mealRelation,
-    this.durationTaking,
-    required this.withBreak,
-    required this.durationBreak,
     required this.dosage,
     required this.dosageType,
-    required this.intakeTime,
+    required this.mealRelation,
     required this.repeatRule,
-    this.photoUrl,
+    required this.intakeTime,
+    this.durationTaking,
+    required this.withBreak,
+    this.durationBreak,
+    this.reason,
     this.symptoms,
+    this.photoUrl,
     this.color,
+    required this.startDate,
+    this.endDate,
   });
 
   factory Medication.fromJson(Map<String, dynamic> json) {
@@ -66,13 +71,16 @@ class Medication {
       dosageType: DosageType.values.firstWhere(
         (e) => e.label == json['dosageType'],
       ),
-      intakeTime: (json['intakeTime'] as List<dynamic>).map((time) {
-        final parts = (time as String).split(':');
-        return TimeOfDay(
-          hour: int.parse(parts[0]),
-          minute: int.parse(parts[1]),
-        );
-      }).toList(),
+      intakeTime: (json['intakeTime'] as List<dynamic>? ?? [])
+          .map((t) => TimeOfDay(hour: t['hour'], minute: t['minute']))
+          .toList(),
+      // intakeTime: (json['intakeTime'] as List<dynamic>).map((time) {
+      //   final parts = (time as String).split(':');
+      //   return TimeOfDay(
+      //     hour: int.parse(parts[0]),
+      //     minute: int.parse(parts[1]),
+      //   );
+      // }).toList(),
       repeatRule: RepeatRule(
         type: RepeatRuleType.values.firstWhere(
           (e) => e.label == json['repeatRule']['type'],
@@ -95,19 +103,22 @@ class Medication {
       'userId': userId,
       'reason': reason,
       'name': name,
-      'startDate': startDate.toIso8601String(),
-      'endDate': endDate?.toIso8601String(),
-      'mealRelation': mealRelation.label,
+      'startDate': Timestamp.fromDate(startDate),
+      'endDate': endDate != null ? Timestamp.fromDate(endDate!) : null,
+      'mealRelation': mealRelation.name,
       'durationTaking': durationTaking?.toJson(),
       'withBreak': withBreak,
       'durationBreak': durationBreak?.toJson(),
       'dosage': dosage,
-      'dosageType': dosageType.label,
-      'intakeTime': intakeTime.map((t) => '${t.hour}:${t.minute}').toList(),
+      'dosageType': dosageType.name,
+      'intakeTime': intakeTime
+          .map((t) => {'hour': t.hour, 'minute': t.minute})
+          .toList(),
+      // 'intakeTime': intakeTime.map((t) => '${t.hour}:${t.minute}').toList(),
       'repeatRule': {
-        'type': repeatRule.type.label,
+        'type': repeatRule.type.name,
         //'intervalDays': repeatRule.intervalDays,
-        'weekdays': repeatRule.weekdays?.map((d) => d.shortLabel).toList(),
+        'weekdays': repeatRule.weekdays?.map((d) => d.name).toList(),
       },
       'symptoms': symptoms,
       'photoUrl': photoUrl,

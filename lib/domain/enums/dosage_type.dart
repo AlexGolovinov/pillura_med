@@ -19,4 +19,23 @@ extension DosageTypeLabel on DosageType {
         return 'Спреи';
     }
   }
+
+  String get shortLabel {
+    switch (this) {
+      case DosageType.pill:
+        return 'таб.';
+      case DosageType.ml:
+        return 'мл';
+      case DosageType.mg:
+        return 'мг';
+      case DosageType.drops:
+        return 'кап.';
+      case DosageType.inhalations:
+        return 'инг.';
+      case DosageType.injections:
+        return 'инъек.';
+      case DosageType.sprays:
+        return 'спрей';
+    }
+  }
 }

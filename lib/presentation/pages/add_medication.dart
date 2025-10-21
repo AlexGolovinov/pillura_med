@@ -1,10 +1,16 @@
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_switch/flutter_switch.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:pillura_med/core/extension/time_of_day_extension.dart';
+import 'package:pillura_med/domain/enums/course_duration_unit.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/domain/enums/meal_relation.dart';
+import 'package:pillura_med/presentation/providers/medication_provider.dart';
+import 'package:pillura_med/presentation/widgets/custom_card.dart';
 import 'package:pillura_med/presentation/widgets/dosage_widget.dart';
 import 'package:pillura_med/presentation/widgets/interval_widget.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
@@ -16,28 +22,29 @@ import '../widgets/automatic_interval_widget.dart';
 import '../widgets/course_duration_widget.dart';
 import '../widgets/manual_intake_widget.dart';
 
-class AddMedicationPage extends StatefulWidget {
+class AddMedicationPage extends ConsumerStatefulWidget {
   const AddMedicationPage({super.key});
 
   @override
-  State<AddMedicationPage> createState() => _AddMedicationPageState();
+  ConsumerState<AddMedicationPage> createState() => _AddMedicationPageState();
 }
 
-class _AddMedicationPageState extends State<AddMedicationPage> {
+class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
   final _formKey = GlobalKey<FormState>();
 
   String? _name;
-  int? _dosage;
-  DosageType? _selectedDosageType;
-  MealRelation? _selectedMealRelation;
-  RepeatRule? _selectedInterval;
-  List<TimeOfDay?>? intakeTime;
+  double? _dosage;
+  DosageType? _dosageType;
+  MealRelation? _mealRelation;
+  RepeatRule? _interval;
+  List<TimeOfDay>? _intakeTime;
 
-  CourseDuration? durationTaking;
-  CourseDuration? durationBreak;
-  String? reason;
-  String? symptoms;
-  Color? selectedColor;
+  CourseDuration? _durationTaking;
+  CourseDuration? _durationBreak;
+  String? _reason;
+  String? _symptoms;
+  Color? _selectedColor;
+  DateTime _startDate = DateTime.now();
 
   bool switchAuto = false;
   bool switchWithBreak = false;
@@ -45,27 +52,218 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
 
   void _addMedicine() {
     if (!switchWithBreak) {
-      durationBreak = null;
+      _durationBreak = null;
     }
     log('Не прошел валидацию');
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
       log('Название: $_name');
       log('Количество: $_dosage');
-      log('Тип дозировки: $_selectedDosageType');
-      log('Прием относительно еды: $_selectedMealRelation');
-      log('Интервал приема: $_selectedInterval');
-      log('Время приема: $intakeTime');
-      log('Длительность приема: ${durationTaking?.toJson()}');
-      log('Длительность перерыва: ${durationBreak?.toJson()}');
-      log('Причина приема: $reason');
-      log('Симптомы: $symptoms');
-      log('Цвет: ${selectedColor?.toARGB32()}');
+      log('Тип дозировки: $_dosageType');
+      log('Прием относительно еды: $_mealRelation');
+      log('Интервал приема: $_interval');
+      log('Время приема: $_intakeTime');
+      log('Длительность приема: ${_durationTaking?.toJson()}');
+      log('Длительность перерыва: ${_durationBreak?.toJson()}');
+      log('Причина приема: $_reason');
+      log('Симптомы: $_symptoms');
+      log('Цвет: ${_selectedColor?.toARGB32()}');
       //_formKey.currentState!.reset();
       // Тут можно локально сохранить данные или вызвать колбек
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Сохранено ✅')));
+      final formatted = DateFormat('dd.MM.yyyy').format(DateTime.now());
+      showDialog(
+        context: context,
+        builder: (_) => Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Заголовок и причина
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _name ?? '',
+                      style: Theme.of(context).textTheme.titleMedium!.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade600,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'причина: ${_reason?.isEmpty == false ? _reason : 'Не указана'}',
+                        style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  'c $formatted',
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
+                ),
+                const SizedBox(height: 16),
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'Принимать: ',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                      TextSpan(
+                        text:
+                            '$_dosage ${_dosageType?.shortLabel ?? ''} ${_mealRelation?.label.toLowerCase() ?? ''} ',
+                      ),
+                    ],
+                  ),
+                  style: TextStyle(fontSize: 15),
+                ),
+                const SizedBox(height: 6),
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'Длительность приема: ',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                      TextSpan(
+                        text:
+                            '${_durationTaking?.count ?? 'Не указано'}  ${_durationTaking?.unit.shortLabel.toLowerCase() ?? ''}',
+                      ),
+                    ],
+                  ),
+                  style: TextStyle(fontSize: 15),
+                ),
+                _durationBreak != null
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 6),
+                          Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: 'Перерыв: ',
+                                  style: TextStyle(color: Colors.grey[600]),
+                                ),
+                                TextSpan(
+                                  text:
+                                      '${_durationBreak?.count ?? ''}  ${_durationBreak?.unit.shortLabel.toLowerCase() ?? ''}',
+                                ),
+                              ],
+                            ),
+                            style: TextStyle(fontSize: 15),
+                          ),
+                        ],
+                      )
+                    : Container(),
+                const SizedBox(height: 16),
+                Text(
+                  'Время приема:',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 15),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _intakeTime!
+                      .map(
+                        (e) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.grey.shade400),
+                          ),
+                          child: Text(
+                            e!.hhmm,
+                            style: const TextStyle(fontSize: 15),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 24),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF202D85),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () {
+                        ref
+                            .read(medicationNotifierProvider.notifier)
+                            .add(
+                              name: _name!,
+                              dosage: _dosage!,
+                              dosageType: _dosageType!,
+                              mealRelation: _mealRelation!,
+                              interval: _interval!,
+                              intakeTime: _intakeTime!,
+                              startDate: _startDate,
+                              durationTaking: _durationTaking,
+                              durationBreak: _durationBreak,
+                              reason: _reason,
+                              symptoms: _symptoms,
+                              color: _selectedColor?.toARGB32(),
+                            );
+                        Navigator.pop(context, false);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Сохранено ✅')),
+                        );
+                        //_formKey.currentState!.reset();
+                      },
+                      child: Text(
+                        'Все верно',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleMedium!.copyWith(color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        side: BorderSide(color: Color(0xFF202D85), width: 1.5),
+                      ),
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text(
+                        'Кое-что изменить',
+                        style: TextStyle(color: Color(0xFF202D85)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -100,7 +298,7 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
                     SizedBox(height: 24),
                     DosageWidget(
                       onSavedType: (value) {
-                        _selectedDosageType = value;
+                        _dosageType = value;
                       },
                       onSavedDosage: (value) {
                         _dosage = value;
@@ -109,7 +307,7 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
                     SizedBox(height: 24),
                     MealRelationWidget(
                       onSaved: (value) {
-                        _selectedMealRelation = value;
+                        _mealRelation = value;
                       },
                     ),
                     SizedBox(height: 24),
@@ -120,7 +318,7 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
                     SizedBox(height: 8),
                     IntervalWidget(
                       onSaved: (value) {
-                        _selectedInterval = value;
+                        _interval = value;
                       },
                     ),
                     SizedBox(height: 24),
@@ -171,12 +369,12 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
                     switchAuto == false
                         ? ManualIntakeWidget(
                             onSaved: (newValue) {
-                              intakeTime = newValue;
+                              _intakeTime = newValue;
                             },
                           )
                         : AutomaticIntervalWidget(
                             onSaved: (newValue) {
-                              intakeTime = newValue;
+                              _intakeTime = newValue;
                             },
                           ),
 
@@ -251,7 +449,7 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
                           title: 'Длительность приема',
                           withBreak: switchWithBreak,
                           onSaved: (courseIntake) {
-                            durationTaking = courseIntake;
+                            _durationTaking = courseIntake;
                           },
                         ),
                         switchWithBreak
@@ -262,7 +460,7 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
                                     title: 'Длительность перерыва',
                                     withBreak: switchWithBreak,
                                     onSaved: (courseBreak) {
-                                      durationBreak = courseBreak;
+                                      _durationBreak = courseBreak;
                                     },
                                   ),
                                 ],
@@ -309,7 +507,7 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
                               hintText: 'Грипп, ангина...',
                             ),
                             onSaved: (value) {
-                              reason = value;
+                              _reason = value;
                             },
                           ),
                         ),
@@ -318,7 +516,7 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
                           title: 'Симптомы(с чем помогает это лекарство)',
                           hintText: 'боль в горле, кашель...',
                           onSaved: (value) {
-                            symptoms = value;
+                            _symptoms = value;
                           },
                         ),
                         SizedBox(height: 24),
@@ -405,10 +603,10 @@ class _AddMedicationPageState extends State<AddMedicationPage> {
                 setState(() {
                   if (selectedPicker == index) {
                     selectedPicker = null;
-                    selectedColor = null;
+                    _selectedColor = null;
                   } else {
                     selectedPicker = index;
-                    selectedColor = colors[index];
+                    _selectedColor = colors[index];
                   }
                 });
               },
