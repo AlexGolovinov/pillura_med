@@ -19,6 +19,7 @@ class AppTheme {
       ),
 
       primaryColor: Color(0xFF202D85),
+
       scaffoldBackgroundColor: Colors.white,
       textTheme: baseTextTheme.copyWith(
         // Заголовки (bold)
@@ -36,6 +37,10 @@ class AppTheme {
         titleMedium: GoogleFonts.openSans(
           fontWeight: FontWeight.w700,
           fontSize: 16,
+        ),
+        titleSmall: GoogleFonts.openSans(
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
         ),
 
         // Текст внутри инпутов (regular)

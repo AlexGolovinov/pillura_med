@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:pillura_med/presentation/pages/profile_page.dart';
 
 import 'core/theme/app_theme.dart';
 import 'presentation/pages/add_medication.dart';
@@ -20,7 +21,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Pillura-Med',
       theme: AppTheme.light,
-      home: AddMedicationPage(), //AddMedicationPage(),
+      home: ProfilePage(), //AddMedicationPage(),
     );
   }
 }
