@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:pillura_med/presentation/widgets/custom_card.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -45,7 +44,6 @@ class _ProfilePageState extends State<ProfilePage> {
             SizedBox(height: 24),
             // Свайп влево: показывает три кнопки (Удалить, Редактировать, Завершить курс)
             // Требует зависимость: flutter_slidable
-            // добавьте в pubspec.yaml: flutter_slidable: ^2.0.0
             Slidable(
               key: UniqueKey(),
               endActionPane: ActionPane(
@@ -56,14 +54,14 @@ class _ProfilePageState extends State<ProfilePage> {
                     child: Padding(
                       padding: const EdgeInsets.only(left: 8.0),
                       child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
                           GestureDetector(
-                            onTap: () {
-                              // действие
-                            },
+                            onTap: () {},
                             child: Container(
                               decoration: BoxDecoration(
-                                color: Colors.amber, //const Color(0xFFF4F4F4),
+                                color:
+                                    Colors.grey[300], //const Color(0xFFF4F4F4),
                                 borderRadius: BorderRadius.only(
                                   bottomLeft: Radius.circular(10),
                                   topLeft: Radius.circular(10),
@@ -73,7 +71,47 @@ class _ProfilePageState extends State<ProfilePage> {
                               //margin: const EdgeInsets.symmetric(horizontal: 4),
                               child: const Icon(
                                 Icons.check,
-                                size: 32, // 👈 теперь задаёшь размер как хочешь
+                                size: 32,
+                                color: Colors.indigo,
+                              ),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () {},
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color:
+                                    Colors.grey[300], //const Color(0xFFF4F4F4),
+                                borderRadius: BorderRadius.only(
+                                  bottomLeft: Radius.circular(10),
+                                  topLeft: Radius.circular(10),
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              //margin: const EdgeInsets.symmetric(horizontal: 4),
+                              child: const Icon(
+                                Icons.edit,
+                                size: 32,
+                                color: Colors.indigo,
+                              ),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () {},
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color:
+                                    Colors.grey[300], //const Color(0xFFF4F4F4),
+                                borderRadius: BorderRadius.only(
+                                  bottomLeft: Radius.circular(10),
+                                  topLeft: Radius.circular(10),
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              //margin: const EdgeInsets.symmetric(horizontal: 4),
+                              child: const Icon(
+                                Icons.delete_forever_rounded,
+                                size: 32,
                                 color: Colors.indigo,
                               ),
                             ),
@@ -183,54 +221,23 @@ class _ProfilePageState extends State<ProfilePage> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {},
-        elevation: 1,
-        shape: CircleBorder(),
-        backgroundColor: Theme.of(context).primaryColor,
-        child: Icon(Icons.add, size: 45, color: Colors.white),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        shape: CircularNotchedRectangle(),
-        notchMargin: 8,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            Column(
-              children: [Icon(Icons.pie_chart_outline), Text('статистика')],
-            ),
-            Column(
-              children: [Icon(Icons.person_add_outlined), Text('добавить')],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _ActionButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: onTap,
-      child: Container(
-        width: double.infinity, // растягивается по ширине панели
-        height: 38,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF4F4F4),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.indigo),
-        ),
-        child: Icon(icon, size: 22, color: Colors.black87),
-      ),
+      // bottomNavigationBar: BottomAppBar(
+      //   height: 70,
+      //   shape: CircularNotchedRectangle(),
+      //   notchMargin: 8,
+      //   child: Row(
+      //     mainAxisAlignment: MainAxisAlignment.spaceAround,
+      //     children: [
+      //       Column(
+      //         mainAxisSize: MainAxisSize.min,
+      //         children: [Icon(Icons.pie_chart_outline), Text('статистика')],
+      //       ),
+      //       Column(
+      //         children: [Icon(Icons.person_add_outlined), Text('добавить')],
+      //       ),
+      //     ],
+      //   ),
+      // ),
     );
   }
 }

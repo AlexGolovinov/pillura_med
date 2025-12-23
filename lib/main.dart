@@ -3,10 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:pillura_med/presentation/pages/profile_page.dart';
+import 'package:pillura_med/router/app_router.dart';
 
 import 'core/theme/app_theme.dart';
-import 'presentation/pages/add_medication.dart';
 import 'firebase_options.dart';
+import 'presentation/pages/auth_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,14 +15,17 @@ void main() async {
   runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Pillura-Med',
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(goRouterProvider);
+
+    return MaterialApp.router(
+      routerConfig: router,
+      title: 'E-Agriculture',
       theme: AppTheme.light,
-      home: ProfilePage(), //AddMedicationPage(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }

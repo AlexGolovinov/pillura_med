@@ -3,19 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pillura_med/presentation/providers/repository_provider.dart';
 import '../../domain/entities/course_duration.dart';
 import '../../domain/entities/medication.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../domain/entities/repeat_rule.dart';
 import '../../domain/enums/dosage_type.dart';
 import '../../domain/enums/meal_relation.dart';
 import '../../domain/repositories/medication_repository.dart';
-part 'medication_provider.g.dart';
 
-@riverpod
-class MedicationNotifier extends _$MedicationNotifier {
+class MedicationNotifier extends AsyncNotifier<List<Medication>> {
   late final MedicationRepository _repo;
   @override
   Future<List<Medication>> build() async {
-    _repo = ref.watch(
+    _repo = ref.read(
       medicationFRepositoryProvider,
     ); // <- берём репозиторий через провайдер
 
@@ -66,4 +63,7 @@ class MedicationNotifier extends _$MedicationNotifier {
   }
 }
 
-final selectedDosageTypeProvider = StateProvider<DosageType?>((ref) => null);
+final medicationNotifierProvider =
+    AsyncNotifierProvider<MedicationNotifier, List<Medication>>(
+      () => MedicationNotifier(),
+    );

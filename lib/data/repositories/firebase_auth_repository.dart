@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dartz/dartz.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 
 import '../../domain/entities/auth_user.dart';
@@ -11,31 +12,38 @@ class FirebaseAuthRepository implements AuthRepository {
   FirebaseAuthRepository(this._firebaseAuth, this._firestore);
 
   @override
-  Stream<AuthUser?> authStateChanges() {
+  Stream<Either<dynamic, AuthUser?>> authStateChanges() {
     return _firebaseAuth.authStateChanges().asyncMap((user) async {
-      if (user == null) return null;
-      return getOrCreateUser(user);
+      if (user == null) return right(null);
+      return (await getOrCreateUser(
+        user,
+      )).fold((l) => left(l), (r) => right(r));
     });
   }
 
   @override
-  Future<AuthUser?> signInAnonymously() async {
+  Future<Either<dynamic, AuthUser?>> signInAnonymously() async {
     final cred = await _firebaseAuth.signInAnonymously();
     final user = cred.user;
-    return getOrCreateUser(user);
+    return (await getOrCreateUser(user)).fold((l) => left(l), (r) => right(r));
   }
 
   @override
-  Future<AuthUser?> signInWithEmail(String email, String password) async {
+  Future<Either<dynamic, AuthUser?>> signInWithEmail(
+    String email,
+    String password,
+  ) async {
     final cred = await _firebaseAuth.signInWithEmailAndPassword(
       email: email,
       password: password,
     );
-    return getOrCreateUser(cred.user);
+    return (await getOrCreateUser(
+      cred.user,
+    )).fold((l) => left(l), (r) => right(r));
   }
 
   @override
-  Future<AuthUser?> registerWithEmail(
+  Future<Either<dynamic, AuthUser?>> registerWithEmail(
     String email,
     String password,
     String name,
@@ -45,15 +53,19 @@ class FirebaseAuthRepository implements AuthRepository {
       password: password,
     );
     final user = cred.user;
-    return getOrCreateUser(user, name: name);
+    return (await getOrCreateUser(
+      user,
+      name: name,
+    )).fold((l) => left(l), (r) => right(r));
   }
 
   @override
-  Future<void> signOut() async {
+  Future<Either<dynamic, void>> signOut() async {
     await _firebaseAuth.signOut();
+    return right(null);
   }
 
-  Future<AuthUser?> upgradeAnonymousAccount(
+  Future<Either<dynamic, AuthUser?>> upgradeAnonymousAccount(
     String email,
     String password,
     String name,
@@ -82,10 +94,10 @@ class FirebaseAuthRepository implements AuthRepository {
         .doc(authUser.uid)
         .set(authUser.toJson());
 
-    return authUser;
+    return right(authUser);
   }
 
-  Future<AuthUser> getOrCreateUser(
+  Future<Either<dynamic, AuthUser>> getOrCreateUser(
     fb.User? user, {
     String name = 'Аноним',
   }) async {
@@ -99,8 +111,8 @@ class FirebaseAuthRepository implements AuthRepository {
         isAnonymous: user.isAnonymous,
       );
       await doc.set(authUser.toJson());
-      return authUser;
+      return right(authUser);
     }
-    return AuthUser.fromJson(snapshot.data()!);
+    return right(AuthUser.fromJson(snapshot.data()!));
   }
 }

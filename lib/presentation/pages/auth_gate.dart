@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pillura_med/presentation/pages/profile_page.dart';
 
 import '../providers/auth_providers.dart';
 import 'medication_page.dart';
@@ -15,7 +16,7 @@ class AuthGate extends ConsumerWidget {
 
     return authState.when(
       data: (user) {
-        if (user != null) return const MedicationPage();
+        if (user != null) return const ProfilePage();
         return WelcomePage();
       },
       loading: () =>

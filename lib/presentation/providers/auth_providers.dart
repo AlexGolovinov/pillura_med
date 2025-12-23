@@ -1,39 +1,31 @@
-import '../../domain/entities/auth_user.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../domain/entities/auth_user.dart';
 
 import '../../domain/repositories/auth_repository.dart';
 import 'repository_provider.dart';
 
-part 'auth_providers.g.dart';
-
-@riverpod
-class AuthNotifier extends _$AuthNotifier {
+class AuthNotifier extends AsyncNotifier<AuthUser?> {
   late final AuthRepository _repo;
 
   @override
-  AsyncValue<AuthUser?> build() {
-    _repo = ref.watch(
-      authFRepositoryProvider,
-    ); // <- берём репозиторий через провайдер
+  Future<AuthUser?> build() async {
+    _repo = ref.read(authFRepositoryProvider);
 
-    final subscription = _repo.authStateChanges().listen((user) {
-      state = AsyncValue.data(user);
-    });
+    // ставим загрузку
+    state = const AsyncValue.loading();
+    final either = await _repo.authStateChanges().first;
 
-    ref.onDispose(() {
-      subscription.cancel();
-    });
-
-    return const AsyncValue.loading();
+    // подписываемся на изменения аутентификации
+    return either.fold((l) => null, (r) => r);
   }
 
   Future<AuthUser?> signInAnonymously() async {
     state = const AsyncValue.loading();
     try {
       final user = await _repo.signInAnonymously();
-      state = AsyncValue.data(user);
-      return user;
+      state = AsyncValue.data(user.fold((l) => null, (r) => r));
+      return user.fold((l) => null, (r) => r);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       return null;
@@ -44,8 +36,8 @@ class AuthNotifier extends _$AuthNotifier {
     state = const AsyncValue.loading();
     try {
       final user = await _repo.signInWithEmail(email, password);
-      state = AsyncValue.data(user);
-      return user;
+      state = AsyncValue.data(user.fold((l) => null, (r) => r));
+      return user.fold((l) => null, (r) => r);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       return null;
@@ -60,8 +52,8 @@ class AuthNotifier extends _$AuthNotifier {
     state = const AsyncValue.loading();
     try {
       final user = await _repo.registerWithEmail(email, password, name);
-      state = AsyncValue.data(user);
-      return user;
+      state = AsyncValue.data(user.fold((l) => null, (r) => r));
+      return user.fold((l) => null, (r) => r);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       return null;
@@ -73,3 +65,7 @@ class AuthNotifier extends _$AuthNotifier {
     state = const AsyncValue.data(null);
   }
 }
+
+final authNotifierProvider = AsyncNotifierProvider<AuthNotifier, AuthUser?>(
+  () => AuthNotifier(),
+);

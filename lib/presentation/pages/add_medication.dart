@@ -3,6 +3,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_switch/flutter_switch.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:pillura_med/core/extension/time_of_day_extension.dart';
@@ -10,7 +11,6 @@ import 'package:pillura_med/domain/enums/course_duration_unit.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/domain/enums/meal_relation.dart';
 import 'package:pillura_med/presentation/providers/medication_provider.dart';
-import 'package:pillura_med/presentation/widgets/custom_card.dart';
 import 'package:pillura_med/presentation/widgets/dosage_widget.dart';
 import 'package:pillura_med/presentation/widgets/interval_widget.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
@@ -44,7 +44,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
   String? _reason;
   String? _symptoms;
   Color? _selectedColor;
-  DateTime _startDate = DateTime.now();
+  final DateTime _startDate = DateTime.now();
 
   bool switchAuto = false;
   bool switchWithBreak = false;
@@ -194,7 +194,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                             border: Border.all(color: Colors.grey.shade400),
                           ),
                           child: Text(
-                            e!.hhmm,
+                            e.hhmm,
                             style: const TextStyle(fontSize: 15),
                           ),
                         ),
@@ -230,7 +230,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                               symptoms: _symptoms,
                               color: _selectedColor?.toARGB32(),
                             );
-                        Navigator.pop(context, false);
+                        context.pop();
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Сохранено ✅')),
                         );
@@ -251,7 +251,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                         ),
                         side: BorderSide(color: Color(0xFF202D85), width: 1.5),
                       ),
-                      onPressed: () => Navigator.pop(context, false),
+                      onPressed: () => context.pop(),
                       child: const Text(
                         'Кое-что изменить',
                         style: TextStyle(color: Color(0xFF202D85)),
