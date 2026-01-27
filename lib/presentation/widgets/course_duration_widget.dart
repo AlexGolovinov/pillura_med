@@ -8,11 +8,13 @@ class CourseDurationWidget extends StatefulWidget {
   final String title;
   final bool withBreak;
   final void Function(CourseDuration?)? onSaved;
+  final bool isRequired;
   const CourseDurationWidget({
     super.key,
     required this.title,
     this.onSaved,
     required this.withBreak,
+    this.isRequired = false,
   });
 
   @override
@@ -35,6 +37,9 @@ class _CourseDurationWidgetState extends State<CourseDurationWidget> {
     return FormField<CourseDuration?>(
       onSaved: widget.onSaved,
       validator: (value) {
+        if (widget.isRequired && value == null) {
+          return 'Введите ${widget.title.toLowerCase()}';
+        }
         if (widget.withBreak && value == null) {
           return 'Введите ${widget.title.toLowerCase()}';
         }

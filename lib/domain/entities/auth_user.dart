@@ -6,14 +6,14 @@ class AuthUser {
   final String? email;
   final String? name;
   final bool isAnonymous;
-  final bool? isAuthenticated;
+  final bool isAuthenticated;
 
   AuthUser({
     required this.uid,
     this.email,
     this.name,
     required this.isAnonymous,
-    this.isAuthenticated,
+    required this.isAuthenticated,
   });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {

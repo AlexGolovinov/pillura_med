@@ -13,7 +13,7 @@ class Landing extends ConsumerWidget {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       authState.maybeWhen(
         data: (user) {
-          if (user != null) {
+          if (user.isAuthenticated) {
             context.go('/profilePage');
           } else {
             context.go('/welcomePage');

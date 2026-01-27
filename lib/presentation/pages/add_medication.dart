@@ -6,7 +6,9 @@ import 'package:flutter_switch/flutter_switch.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:pillura_med/core/extension/theme_extension.dart';
 import 'package:pillura_med/core/extension/time_of_day_extension.dart';
+import 'package:pillura_med/domain/entities/intake_time.dart';
 import 'package:pillura_med/domain/enums/course_duration_unit.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/domain/enums/meal_relation.dart';
@@ -37,7 +39,8 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
   DosageType? _dosageType;
   MealRelation? _mealRelation;
   RepeatRule? _interval;
-  List<TimeOfDay>? _intakeTime;
+  List<IntakeTime>? _intakeTimes;
+  //List<TimeOfDay>? _intakeTime;
 
   CourseDuration? _durationTaking;
   CourseDuration? _durationBreak;
@@ -49,6 +52,307 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
   bool switchAuto = false;
   bool switchWithBreak = false;
   int? selectedPicker;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Добавить лекарство')),
+      body: SafeArea(
+        child: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: Form(
+            key: _formKey,
+            child: Padding(
+              padding: EdgeInsets.only(left: 8, right: 8, bottom: 16),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(height: 16),
+                    InputBlock(
+                      title: 'Название лекарства',
+                      hintText: 'Введите название лекарства',
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Введите название лекарства';
+                        }
+                        return null;
+                      },
+                      onSaved: (value) {
+                        _name = value;
+                      },
+                    ),
+                    SizedBox(height: 24),
+                    DosageWidget(
+                      onSavedType: (value) {
+                        _dosageType = value;
+                      },
+                      onSavedDosage: (value) {
+                        _dosage = value;
+                      },
+                    ),
+                    SizedBox(height: 24),
+                    MealRelationWidget(
+                      onSaved: (value) {
+                        _mealRelation = value;
+                      },
+                    ),
+                    SizedBox(height: 24),
+                    Text(
+                      "Интервал приёма лекарства",
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    SizedBox(height: 8),
+                    IntervalWidget(
+                      onSaved: (value) {
+                        _interval = value;
+                      },
+                    ),
+                    SizedBox(height: 24),
+                    Text(
+                      "Время приема",
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Text(
+                          'Ручной ввод',
+                          style: !switchAuto
+                              ? context.textTheme.bodyMedium?.copyWith(
+                                  color: context.colors.primary,
+                                  fontWeight: FontWeight.bold,
+                                )
+                              : null,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8, right: 8),
+                          child: FlutterSwitch(
+                            height: 41,
+                            inactiveIcon: Icon(Icons.edit),
+                            inactiveColor: Color(0xFFE3E7FF),
+                            activeColor: Color(0xFFE3E7FF),
+                            activeIcon: Icon(Icons.computer),
+                            value: switchAuto,
+                            onToggle: (bool value) {
+                              setState(() {
+                                switchAuto = value;
+                              });
+                            },
+                          ),
+                        ),
+                        Text(
+                          'Автоматический рассчет',
+                          style: switchAuto
+                              ? context.textTheme.bodyMedium?.copyWith(
+                                  color: context.colors.primary,
+                                  fontWeight: FontWeight.bold,
+                                )
+                              : null,
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    switchAuto == false
+                        ? ManualIntakeWidget(
+                            onSaved: (newValue) {
+                              _intakeTimes = newValue!
+                                  .map((e) => IntakeTime(time: e))
+                                  .toList();
+                            },
+                          )
+                        : AutomaticIntervalWidget(
+                            onSaved: (newValue) {
+                              _intakeTimes = newValue!
+                                  .map((e) => IntakeTime(time: e))
+                                  .toList();
+                            },
+                          ),
+
+                    SizedBox(height: 24),
+                    CourseDurationWidget(
+                      title: 'Длительность приема',
+                      withBreak: switchWithBreak,
+                      isRequired: true,
+                      onSaved: (courseIntake) {
+                        _durationTaking = courseIntake;
+                      },
+                    ),
+                    SizedBox(height: 24),
+                    ExpansionTile(
+                      maintainState: true,
+                      expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                      collapsedBackgroundColor: Color(0xFFF5F7FF),
+                      backgroundColor: Color(0xFFF5F7FF),
+                      collapsedShape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      childrenPadding: EdgeInsets.only(left: 16, right: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      subtitle: Text(
+                        'Они не обязательны, но могут быть полезны',
+                      ),
+                      title: Text(
+                        'Дополнительные функции',
+                        style: GoogleFonts.openSans(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                      children: [
+                        SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Text(
+                              'Разовый прием',
+                              style: !switchWithBreak
+                                  ? TextStyle(
+                                      color: Theme.of(context).primaryColor,
+                                      fontWeight: FontWeight.bold,
+                                    )
+                                  : null,
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8, right: 8),
+                              child: FlutterSwitch(
+                                height: 41,
+                                activeToggleColor: Colors.indigoAccent,
+                                inactiveToggleColor: Colors.indigoAccent,
+                                inactiveColor: Color(0xFFE3E7FF),
+                                activeColor: Color(0xFFE3E7FF),
+                                value: switchWithBreak,
+                                onToggle: (bool value) {
+                                  setState(() {
+                                    switchWithBreak = value;
+                                  });
+                                },
+                              ),
+                            ),
+                            Text(
+                              'С перерывом',
+                              style: switchWithBreak
+                                  ? TextStyle(
+                                      color: Theme.of(context).primaryColor,
+                                      fontWeight: FontWeight.bold,
+                                    )
+                                  : null,
+                            ),
+                            SizedBox(width: 8),
+                            showInfoAboutBreak(context),
+                          ],
+                        ),
+                        SizedBox(height: 24),
+
+                        switchWithBreak
+                            ? Column(
+                                children: [
+                                  SizedBox(height: 24),
+                                  CourseDurationWidget(
+                                    title: 'Длительность перерыва',
+                                    withBreak: switchWithBreak,
+                                    onSaved: (courseBreak) {
+                                      _durationBreak = courseBreak;
+                                    },
+                                  ),
+                                ],
+                              )
+                            : Container(),
+                        SizedBox(height: 24),
+                        Row(
+                          children: [
+                            Text(
+                              'Причина приема (болезнь или)',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (_) => AlertDialog(
+                                    title: const Text('Информация'),
+                                    content: Text(
+                                      'Приложение поможет вести историю и строить статистику, чтобы тебе было легче просматривать ее в будущем',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('Понятно'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                              child: Icon(
+                                Icons.info_outline,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        SizedBox(
+                          height: 41,
+                          child: TextFormField(
+                            decoration: InputDecoration(
+                              hintText: 'Грипп, ангина...',
+                            ),
+                            onSaved: (value) {
+                              _reason = value;
+                            },
+                          ),
+                        ),
+                        SizedBox(height: 24),
+                        InputBlock(
+                          title: 'Симптомы(с чем помогает это лекарство)',
+                          hintText: 'боль в горле, кашель...',
+                          onSaved: (value) {
+                            _symptoms = value;
+                          },
+                        ),
+                        SizedBox(height: 24),
+                        Text(
+                          'Выбрать цвет для боковой полосочки',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        SizedBox(height: 8),
+                        colorPicker(),
+                        SizedBox(height: 8),
+                      ],
+                    ),
+
+                    SizedBox(height: 24),
+
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF202D85),
+                        minimumSize: Size(double.infinity, 41),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () {
+                        _addMedicine();
+                      },
+                      child: Text(
+                        'Добавить',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleMedium!.copyWith(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   void _addMedicine() {
     if (!switchWithBreak) {
@@ -62,7 +366,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
       log('Тип дозировки: $_dosageType');
       log('Прием относительно еды: $_mealRelation');
       log('Интервал приема: $_interval');
-      log('Время приема: $_intakeTime');
+      log('Время приема: $_intakeTimes');
       log('Длительность приема: ${_durationTaking?.toJson()}');
       log('Длительность перерыва: ${_durationBreak?.toJson()}');
       log('Причина приема: $_reason');
@@ -182,7 +486,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _intakeTime!
+                  children: _intakeTimes!
                       .map(
                         (e) => Container(
                           padding: const EdgeInsets.symmetric(
@@ -194,7 +498,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                             border: Border.all(color: Colors.grey.shade400),
                           ),
                           child: Text(
-                            e.hhmm,
+                            e.time.hhmm,
                             style: const TextStyle(fontSize: 15),
                           ),
                         ),
@@ -222,7 +526,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                               dosageType: _dosageType!,
                               mealRelation: _mealRelation!,
                               interval: _interval!,
-                              intakeTime: _intakeTime!,
+                              intakeTime: _intakeTimes!,
                               startDate: _startDate,
                               durationTaking: _durationTaking,
                               durationBreak: _durationBreak,
@@ -231,6 +535,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                               color: _selectedColor?.toARGB32(),
                             );
                         context.pop();
+                        context.go('/profilePage');
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Сохранено ✅')),
                         );
@@ -265,299 +570,6 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
         ),
       );
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Добавить лекарство')),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: EdgeInsets.only(left: 8, right: 8, bottom: 16),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(height: 16),
-                    InputBlock(
-                      title: 'Название лекарства',
-                      hintText: 'Введите название лекарства',
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Введите название лекарства';
-                        }
-                        return null;
-                      },
-                      onSaved: (value) {
-                        _name = value;
-                      },
-                    ),
-                    SizedBox(height: 24),
-                    DosageWidget(
-                      onSavedType: (value) {
-                        _dosageType = value;
-                      },
-                      onSavedDosage: (value) {
-                        _dosage = value;
-                      },
-                    ),
-                    SizedBox(height: 24),
-                    MealRelationWidget(
-                      onSaved: (value) {
-                        _mealRelation = value;
-                      },
-                    ),
-                    SizedBox(height: 24),
-                    Text(
-                      "Интервал приёма лекарства",
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    SizedBox(height: 8),
-                    IntervalWidget(
-                      onSaved: (value) {
-                        _interval = value;
-                      },
-                    ),
-                    SizedBox(height: 24),
-                    Text(
-                      "Время приема",
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Text(
-                          'Ручной ввод',
-                          style: !switchAuto
-                              ? TextStyle(
-                                  color: Theme.of(context).primaryColor,
-                                  fontWeight: FontWeight.bold,
-                                )
-                              : null,
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(left: 8, right: 8),
-                          child: FlutterSwitch(
-                            height: 41,
-                            inactiveIcon: Icon(Icons.edit),
-                            inactiveColor: Color(0xFFE3E7FF),
-                            activeColor: Color(0xFFE3E7FF),
-                            activeIcon: Icon(Icons.computer),
-                            value: switchAuto,
-                            onToggle: (bool value) {
-                              setState(() {
-                                switchAuto = value;
-                              });
-                            },
-                          ),
-                        ),
-                        Text(
-                          'Автоматический рассчет',
-                          style: switchAuto
-                              ? TextStyle(
-                                  color: Theme.of(context).primaryColor,
-                                  fontWeight: FontWeight.bold,
-                                )
-                              : null,
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 8),
-                    switchAuto == false
-                        ? ManualIntakeWidget(
-                            onSaved: (newValue) {
-                              _intakeTime = newValue;
-                            },
-                          )
-                        : AutomaticIntervalWidget(
-                            onSaved: (newValue) {
-                              _intakeTime = newValue;
-                            },
-                          ),
-
-                    SizedBox(height: 24),
-                    ExpansionTile(
-                      maintainState: true,
-                      expandedCrossAxisAlignment: CrossAxisAlignment.start,
-                      collapsedBackgroundColor: Color(0xFFF5F7FF),
-                      backgroundColor: Color(0xFFF5F7FF),
-                      collapsedShape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      childrenPadding: EdgeInsets.only(left: 16, right: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      subtitle: Text(
-                        'Они не обязательны, но могут быть полезны',
-                      ),
-                      title: Text(
-                        'Дополнительные функции',
-                        style: GoogleFonts.openSans(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                          color: Theme.of(context).primaryColor,
-                        ),
-                      ),
-                      children: [
-                        SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Text(
-                              'Разовый прием',
-                              style: !switchWithBreak
-                                  ? TextStyle(
-                                      color: Theme.of(context).primaryColor,
-                                      fontWeight: FontWeight.bold,
-                                    )
-                                  : null,
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(left: 8, right: 8),
-                              child: FlutterSwitch(
-                                height: 41,
-                                activeToggleColor: Colors.indigoAccent,
-                                inactiveToggleColor: Colors.indigoAccent,
-                                inactiveColor: Color(0xFFE3E7FF),
-                                activeColor: Color(0xFFE3E7FF),
-                                value: switchWithBreak,
-                                onToggle: (bool value) {
-                                  setState(() {
-                                    switchWithBreak = value;
-                                  });
-                                },
-                              ),
-                            ),
-                            Text(
-                              'С перерывом',
-                              style: switchWithBreak
-                                  ? TextStyle(
-                                      color: Theme.of(context).primaryColor,
-                                      fontWeight: FontWeight.bold,
-                                    )
-                                  : null,
-                            ),
-                            SizedBox(width: 8),
-                            showInfoAboutBreak(context),
-                          ],
-                        ),
-                        SizedBox(height: 24),
-                        CourseDurationWidget(
-                          title: 'Длительность приема',
-                          withBreak: switchWithBreak,
-                          onSaved: (courseIntake) {
-                            _durationTaking = courseIntake;
-                          },
-                        ),
-                        switchWithBreak
-                            ? Column(
-                                children: [
-                                  SizedBox(height: 24),
-                                  CourseDurationWidget(
-                                    title: 'Длительность перерыва',
-                                    withBreak: switchWithBreak,
-                                    onSaved: (courseBreak) {
-                                      _durationBreak = courseBreak;
-                                    },
-                                  ),
-                                ],
-                              )
-                            : Container(),
-                        SizedBox(height: 24),
-                        Row(
-                          children: [
-                            Text(
-                              'Причина приема (болезнь или)',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            SizedBox(width: 8),
-                            GestureDetector(
-                              onTap: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (_) => AlertDialog(
-                                    title: const Text('Информация'),
-                                    content: Text(
-                                      'Приложение поможет вести историю и строить статистику, чтобы тебе было легче просматривать ее в будущем',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(context),
-                                        child: const Text('Понятно'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                              child: Icon(
-                                Icons.info_outline,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 8),
-                        SizedBox(
-                          height: 41,
-                          child: TextFormField(
-                            decoration: InputDecoration(
-                              hintText: 'Грипп, ангина...',
-                            ),
-                            onSaved: (value) {
-                              _reason = value;
-                            },
-                          ),
-                        ),
-                        SizedBox(height: 24),
-                        InputBlock(
-                          title: 'Симптомы(с чем помогает это лекарство)',
-                          hintText: 'боль в горле, кашель...',
-                          onSaved: (value) {
-                            _symptoms = value;
-                          },
-                        ),
-                        SizedBox(height: 24),
-                        Text(
-                          'Выбрать цвет для боковой полосочки',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        SizedBox(height: 8),
-                        colorPicker(),
-                        SizedBox(height: 8),
-                      ],
-                    ),
-
-                    SizedBox(height: 24),
-
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFF202D85),
-                        minimumSize: Size(double.infinity, 41),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      onPressed: () {
-                        _addMedicine();
-                      },
-                      child: Text(
-                        'Добавить',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.titleMedium!.copyWith(color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   Widget colorPicker() {

@@ -17,25 +17,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     navigatorKey: _navigatorKey,
     initialLocation: '/landing',
     redirect: (context, state) {
-      final authStateASync = ref.watch(authNotifierProvider);
-
-      if (authStateASync.isLoading) {
-        // пока данные стрима не пришли, не редиректим
-        return null;
-      }
-      final authState = authStateASync.value;
+      final authState = ref.watch(authNotifierProvider).value;
 
       if (authState == null) {
         // loading или error → ничего не делаем, остаёмся на текущем роуте
         return null;
       }
 
-      // редиректим только если реально авторизован или нет
-      if (authState.isAuthenticated! &&
-          state.matchedLocation == '/welcomePage') {
-        return '/home';
-      }
-      if (authState.isAuthenticated! &&
+      //редиректим только если реально авторизован или нет
+      // if (authState.isAuthenticated &&
+      //     state.matchedLocation == '/welcomePage') {
+      //   return '/profilePage';
+      // }
+      if (!authState.isAuthenticated &&
           state.matchedLocation != '/welcomePage') {
         return '/welcomePage';
       }
@@ -50,6 +44,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
+                path: '/medicationPage',
+                name: 'MedicationPage',
+                builder: (context, state) => const MedicationPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
                 path: '/profilePage',
                 name: 'ProfilePage',
                 builder: (context, state) => ProfilePage(),
@@ -58,6 +61,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 path: '/addMedication',
                 name: 'AddMedication',
                 builder: (context, state) => AddMedicationPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/welcomePage',
+                name: 'WelcomePage',
+                builder: (context, state) => const WelcomePage(),
               ),
             ],
           ),
@@ -96,16 +108,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           // ),
         ],
       ),
-      GoRoute(
-        path: '/medicationPage',
-        name: 'MedicationPage',
-        builder: (context, state) => const MedicationPage(),
-      ),
-      GoRoute(
-        path: '/welcomePage',
-        name: 'WelcomePage',
-        builder: (context, state) => const WelcomePage(),
-      ),
+
       GoRoute(
         path: '/landing',
         name: 'Landing',

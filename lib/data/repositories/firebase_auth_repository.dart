@@ -12,9 +12,13 @@ class FirebaseAuthRepository implements AuthRepository {
   FirebaseAuthRepository(this._firebaseAuth, this._firestore);
 
   @override
-  Stream<Either<dynamic, AuthUser?>> authStateChanges() {
+  Stream<Either<dynamic, AuthUser>> authStateChanges() {
     return _firebaseAuth.authStateChanges().asyncMap((user) async {
-      if (user == null) return right(null);
+      if (user == null) {
+        return right(
+          AuthUser(uid: '', isAuthenticated: false, isAnonymous: false),
+        );
+      }
       return (await getOrCreateUser(
         user,
       )).fold((l) => left(l), (r) => right(r));
@@ -33,13 +37,17 @@ class FirebaseAuthRepository implements AuthRepository {
     String email,
     String password,
   ) async {
-    final cred = await _firebaseAuth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-    return (await getOrCreateUser(
-      cred.user,
-    )).fold((l) => left(l), (r) => right(r));
+    try {
+      final cred = await _firebaseAuth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      return (await getOrCreateUser(
+        cred.user,
+      )).fold((l) => left(l), (r) => right(r));
+    } catch (e) {
+      return left(e);
+    }
   }
 
   @override
@@ -87,6 +95,7 @@ class FirebaseAuthRepository implements AuthRepository {
       email: email,
       name: name,
       isAnonymous: false,
+      isAuthenticated: true,
     );
 
     await _firestore
@@ -109,6 +118,7 @@ class FirebaseAuthRepository implements AuthRepository {
         email: user.email,
         name: name,
         isAnonymous: user.isAnonymous,
+        isAuthenticated: true,
       );
       await doc.set(authUser.toJson());
       return right(authUser);

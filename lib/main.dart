@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:pillura_med/presentation/pages/profile_page.dart';
 import 'package:pillura_med/router/app_router.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
-import 'presentation/pages/auth_gate.dart';
+import 'core/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  tz.initializeTimeZones();
+  TimezoneInfo? timezone = await FlutterTimezone.getLocalTimezone();
+  tz.setLocalLocation(tz.getLocation(timezone.identifier));
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await NotificationService.init();
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -23,7 +30,7 @@ class MyApp extends ConsumerWidget {
 
     return MaterialApp.router(
       routerConfig: router,
-      title: 'E-Agriculture',
+      title: 'Pillura Med',
       theme: AppTheme.light,
       debugShowCheckedModeBanner: false,
     );

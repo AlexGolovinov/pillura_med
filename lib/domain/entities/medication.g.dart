@@ -21,7 +21,7 @@ abstract class _$MedicationCWProxy {
 
   Medication repeatRule(RepeatRule repeatRule);
 
-  Medication intakeTime(List<TimeOfDay> intakeTime);
+  Medication intakeTime(List<IntakeTime> intakeTime);
 
   Medication durationTaking(CourseDuration? durationTaking);
 
@@ -41,6 +41,10 @@ abstract class _$MedicationCWProxy {
 
   Medication endDate(DateTime? endDate);
 
+  Medication finishedAt(bool finishedAt);
+
+  Medication notificationIds(List<int>? notificationIds);
+
   /// This function **does support** nullification of nullable fields. All `null` values passed to `non-nullable` fields will be ignored. You can also use `Medication(...).copyWith.fieldName(...)` to override fields one at a time with nullification support.
   ///
   /// Usage
@@ -55,7 +59,7 @@ abstract class _$MedicationCWProxy {
     DosageType dosageType,
     MealRelation mealRelation,
     RepeatRule repeatRule,
-    List<TimeOfDay> intakeTime,
+    List<IntakeTime> intakeTime,
     CourseDuration? durationTaking,
     bool withBreak,
     CourseDuration? durationBreak,
@@ -65,6 +69,8 @@ abstract class _$MedicationCWProxy {
     int? color,
     DateTime startDate,
     DateTime? endDate,
+    bool finishedAt,
+    List<int>? notificationIds,
   });
 }
 
@@ -97,7 +103,7 @@ class _$MedicationCWProxyImpl implements _$MedicationCWProxy {
   Medication repeatRule(RepeatRule repeatRule) => this(repeatRule: repeatRule);
 
   @override
-  Medication intakeTime(List<TimeOfDay> intakeTime) =>
+  Medication intakeTime(List<IntakeTime> intakeTime) =>
       this(intakeTime: intakeTime);
 
   @override
@@ -130,6 +136,13 @@ class _$MedicationCWProxyImpl implements _$MedicationCWProxy {
   Medication endDate(DateTime? endDate) => this(endDate: endDate);
 
   @override
+  Medication finishedAt(bool finishedAt) => this(finishedAt: finishedAt);
+
+  @override
+  Medication notificationIds(List<int>? notificationIds) =>
+      this(notificationIds: notificationIds);
+
+  @override
   /// This function **does support** nullification of nullable fields. All `null` values passed to `non-nullable` fields will be ignored. You can also use `Medication(...).copyWith.fieldName(...)` to override fields one at a time with nullification support.
   ///
   /// Usage
@@ -154,6 +167,8 @@ class _$MedicationCWProxyImpl implements _$MedicationCWProxy {
     Object? color = const $CopyWithPlaceholder(),
     Object? startDate = const $CopyWithPlaceholder(),
     Object? endDate = const $CopyWithPlaceholder(),
+    Object? finishedAt = const $CopyWithPlaceholder(),
+    Object? notificationIds = const $CopyWithPlaceholder(),
   }) {
     return Medication(
       id: id == const $CopyWithPlaceholder()
@@ -187,7 +202,7 @@ class _$MedicationCWProxyImpl implements _$MedicationCWProxy {
       intakeTime: intakeTime == const $CopyWithPlaceholder()
           ? _value.intakeTime
           // ignore: cast_nullable_to_non_nullable
-          : intakeTime as List<TimeOfDay>,
+          : intakeTime as List<IntakeTime>,
       durationTaking: durationTaking == const $CopyWithPlaceholder()
           ? _value.durationTaking
           // ignore: cast_nullable_to_non_nullable
@@ -224,6 +239,14 @@ class _$MedicationCWProxyImpl implements _$MedicationCWProxy {
           ? _value.endDate
           // ignore: cast_nullable_to_non_nullable
           : endDate as DateTime?,
+      finishedAt: finishedAt == const $CopyWithPlaceholder()
+          ? _value.finishedAt
+          // ignore: cast_nullable_to_non_nullable
+          : finishedAt as bool,
+      notificationIds: notificationIds == const $CopyWithPlaceholder()
+          ? _value.notificationIds
+          // ignore: cast_nullable_to_non_nullable
+          : notificationIds as List<int>?,
     );
   }
 }

@@ -68,6 +68,7 @@ class _DosageWidgetState extends State<DosageWidget> {
                 ..._baseDosageType.map(
                   (e) => GestureDetector(
                     onTap: () {
+                      FocusScope.of(context).unfocus();
                       state.didChange(e); // обновляем состояние FormField
                       setState(() {
                         _extraDosageType = null;
@@ -81,7 +82,10 @@ class _DosageWidgetState extends State<DosageWidget> {
                 ),
                 if (_extraDosageType != null)
                   GestureDetector(
-                    onTap: () => state.didChange(_extraDosageType),
+                    onTap: () {
+                      state.didChange(_extraDosageType);
+                      FocusScope.of(context).unfocus();
+                    },
                     child: customCard(
                       title: _extraDosageType!.label,
                       isSelected: state.value == _extraDosageType,
@@ -89,6 +93,11 @@ class _DosageWidgetState extends State<DosageWidget> {
                   ),
                 PopupMenuButton<DosageType>(
                   onSelected: (value) {
+                    Future.delayed(Duration(milliseconds: 100), () {
+                      if (context.mounted) {
+                        FocusScope.of(context).unfocus();
+                      }
+                    });
                     state.didChange(value);
                     setState(() {
                       _extraDosageType = value;

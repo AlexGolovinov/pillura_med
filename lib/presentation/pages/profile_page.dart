@@ -1,16 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:pillura_med/domain/enums/course_duration_unit.dart';
+import 'package:pillura_med/domain/enums/dosage_type.dart';
+import 'package:pillura_med/presentation/providers/medication_provider.dart';
+import 'package:pillura_med/presentation/widgets/medication_card.dart';
 
-class ProfilePage extends StatefulWidget {
+import '../../domain/entities/intake_time.dart';
+import '../../domain/entities/medication.dart';
+
+class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
 
   @override
-  State<ProfilePage> createState() => _ProfilePageState();
+  ConsumerState<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+class _ProfilePageState extends ConsumerState<ProfilePage> {
   @override
   Widget build(BuildContext context) {
+    final medication = ref.watch(medicationNotifierProvider);
     return Scaffold(
       appBar: AppBar(title: Text('Профили'), centerTitle: false),
       body: Padding(
@@ -42,184 +51,63 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
             SizedBox(height: 24),
+            medication.when(
+              data: (data) {
+                return Expanded(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: data.length,
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12.0),
+                        child: MedicationCard(
+                          title: data[index].name,
+                          dosage: data[index].dosage.toString(),
+                          dosageType: data[index].dosageType.shortLabel,
+                          startDate: data[index].startDate,
+                          intakeTime: data[index].intakeTime,
+                          courseInfo: getCourseEndDate(data[index]),
+                          color: data[index].color != null
+                              ? Color(data[index].color!)
+                              : null,
+                          deleteMedication: () {
+                            ref
+                                .read(medicationNotifierProvider.notifier)
+                                .deleteMedication(data[index].id);
+                          },
+                          onTake: (IntakeTime time) {
+                            ref
+                                .read(medicationNotifierProvider.notifier)
+                                .updateIntakeTime(data[index].id, time, true);
+                          },
+                          onSkip: (IntakeTime time) {
+                            ref
+                                .read(medicationNotifierProvider.notifier)
+                                .updateIntakeTime(data[index].id, time, false);
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+              loading: () => Center(child: CircularProgressIndicator()),
+              error: (error, stack) => Center(child: Text('Ошибка загрузки')),
+            ),
+
             // Свайп влево: показывает три кнопки (Удалить, Редактировать, Завершить курс)
             // Требует зависимость: flutter_slidable
-            Slidable(
-              key: UniqueKey(),
-              endActionPane: ActionPane(
-                motion: const ScrollMotion(),
-                extentRatio: 0.25,
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 8.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          GestureDetector(
-                            onTap: () {},
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color:
-                                    Colors.grey[300], //const Color(0xFFF4F4F4),
-                                borderRadius: BorderRadius.only(
-                                  bottomLeft: Radius.circular(10),
-                                  topLeft: Radius.circular(10),
-                                ),
-                              ),
-                              alignment: Alignment.center,
-                              //margin: const EdgeInsets.symmetric(horizontal: 4),
-                              child: const Icon(
-                                Icons.check,
-                                size: 32,
-                                color: Colors.indigo,
-                              ),
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () {},
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color:
-                                    Colors.grey[300], //const Color(0xFFF4F4F4),
-                                borderRadius: BorderRadius.only(
-                                  bottomLeft: Radius.circular(10),
-                                  topLeft: Radius.circular(10),
-                                ),
-                              ),
-                              alignment: Alignment.center,
-                              //margin: const EdgeInsets.symmetric(horizontal: 4),
-                              child: const Icon(
-                                Icons.edit,
-                                size: 32,
-                                color: Colors.indigo,
-                              ),
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () {},
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color:
-                                    Colors.grey[300], //const Color(0xFFF4F4F4),
-                                borderRadius: BorderRadius.only(
-                                  bottomLeft: Radius.circular(10),
-                                  topLeft: Radius.circular(10),
-                                ),
-                              ),
-                              alignment: Alignment.center,
-                              //margin: const EdgeInsets.symmetric(horizontal: 4),
-                              child: const Icon(
-                                Icons.delete_forever_rounded,
-                                size: 32,
-                                color: Colors.indigo,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Container(
-                  height: 136,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.grey.shade400),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 19,
-                        height: double.infinity,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFE8EFFB),
-                          borderRadius: BorderRadius.only(
-                            bottomLeft: Radius.circular(10),
-                            topLeft: Radius.circular(10),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Paracetamol',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleSmall,
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFE8EFFB),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      'по 1 табл.',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium!
-                                          .copyWith(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Text(
-                                'c 29 окт.',
-                                style: TextStyle(
-                                  color: Colors.grey.shade700,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const Spacer(),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFC6D649),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: Colors.grey.shade400,
-                                  ),
-                                ),
-                                child: const Text(
-                                  '10:00',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
+      ),
+
+      floatingActionButton: FloatingActionButton(
+        elevation: 3,
+        onPressed: () {
+          context.push('/addMedication');
+        },
+        backgroundColor: Theme.of(context).primaryColor,
+        child: Icon(Icons.add, size: 45, color: Colors.white),
       ),
       // bottomNavigationBar: BottomAppBar(
       //   height: 70,
@@ -239,5 +127,21 @@ class _ProfilePageState extends State<ProfilePage> {
       //   ),
       // ),
     );
+  }
+
+  String getCourseEndDate(Medication medication) {
+    if (medication.durationTaking != null) {
+      final startDate = medication.startDate;
+      final int totalDays =
+          medication.durationTaking!.count *
+          (medication.durationTaking!.unit == CourseDurationUnit.day
+              ? 1
+              : medication.durationTaking!.unit == CourseDurationUnit.week
+              ? 7
+              : 30);
+      final endDate = startDate.add(Duration(days: totalDays - 1));
+      return '${endDate.day} ${getMonthName(endDate.month)}';
+    }
+    return '';
   }
 }

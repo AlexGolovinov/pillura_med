@@ -9,9 +9,7 @@ class CourseDuration {
   factory CourseDuration.fromJson(Map<String, dynamic> json) {
     return CourseDuration(
       count: json['count'] as int,
-      unit: CourseDurationUnit.values.firstWhere(
-        (e) => e.label == json['duration'],
-      ),
+      unit: CourseDurationUnit.values.firstWhere((e) => e.name == json['unit']),
     );
   }
 

@@ -39,7 +39,10 @@ class _MealRelationWidgetState extends State<MealRelationWidget> {
               children: _mealRelations
                   .map(
                     (e) => GestureDetector(
-                      onTap: () => state.didChange(e),
+                      onTap: () {
+                        FocusScope.of(context).unfocus();
+                        state.didChange(e);
+                      },
                       child: customCard(
                         title: e.label,
                         isSelected: state.value == e,

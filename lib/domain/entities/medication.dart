@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:copy_with_extension/copy_with_extension.dart';
-import 'package:flutter/material.dart';
+import 'package:pillura_med/domain/entities/intake_time.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/domain/enums/meal_relation.dart';
 import 'package:pillura_med/domain/enums/weekday.dart';
@@ -20,7 +20,7 @@ class Medication {
   final DosageType dosageType;
   final MealRelation mealRelation;
   final RepeatRule repeatRule;
-  final List<TimeOfDay> intakeTime;
+  final List<IntakeTime> intakeTime;
   final CourseDuration? durationTaking;
   final bool withBreak;
   final CourseDuration? durationBreak;
@@ -30,6 +30,8 @@ class Medication {
   final int? color;
   final DateTime startDate;
   final DateTime? endDate;
+  final bool finishedAt;
+  List<int>? notificationIds;
 
   Medication({
     required this.id,
@@ -49,6 +51,8 @@ class Medication {
     this.color,
     required this.startDate,
     this.endDate,
+    this.finishedAt = false,
+    this.notificationIds,
   });
 
   factory Medication.fromJson(Map<String, dynamic> json) {
@@ -57,23 +61,27 @@ class Medication {
       userId: json['userId'] as String,
       reason: json['reason'] as String,
       name: json['name'] as String,
-      startDate: DateTime.parse(json['startDate'] as String),
+      startDate: (json['startDate'] as Timestamp).toDate(),
       endDate: json['endDate'] != null
-          ? DateTime.parse(json['endDate'] as String)
+          ? (json['endDate'] as Timestamp).toDate()
           : null,
       mealRelation: MealRelation.values.firstWhere(
-        (e) => e.label == json['mealRelation'],
+        (e) => e.name == json['mealRelation'],
       ),
-      durationTaking: CourseDuration.fromJson(json['courseDuration'] ?? {}),
+      durationTaking: json['durationTaking'] != null
+          ? CourseDuration.fromJson(json['durationTaking'] ?? {})
+          : null,
       withBreak: json['withBreak'] as bool,
-      durationBreak: CourseDuration.fromJson(json['courseDuration'] ?? {}),
+      durationBreak: json['durationBreak'] != null
+          ? CourseDuration.fromJson(json['durationBreak'] ?? {})
+          : null,
       dosage: json['dosage'] as double,
       dosageType: DosageType.values.firstWhere(
-        (e) => e.label == json['dosageType'],
+        (e) => e.name == json['dosageType'],
       ),
-      intakeTime: (json['intakeTime'] as List<dynamic>? ?? [])
-          .map((t) => TimeOfDay(hour: t['hour'], minute: t['minute']))
-          .toList(),
+      intakeTime: (json['intakeTime'] as List<dynamic>).map((time) {
+        return IntakeTime.fromJson(time as Map<String, dynamic>);
+      }).toList(),
       // intakeTime: (json['intakeTime'] as List<dynamic>).map((time) {
       //   final parts = (time as String).split(':');
       //   return TimeOfDay(
@@ -83,7 +91,7 @@ class Medication {
       // }).toList(),
       repeatRule: RepeatRule(
         type: RepeatRuleType.values.firstWhere(
-          (e) => e.label == json['repeatRule']['type'],
+          (e) => e.name == json['repeatRule']['type'],
         ),
         //intervalDays: json['repeatRule']['intervalDays'] as int?,
         weekdays: (json['repeatRule']['weekdays'] as List<dynamic>?)
@@ -94,6 +102,11 @@ class Medication {
       ),
       symptoms: json['symptoms'] as String?,
       photoUrl: json['photoUrl'] as String?,
+      color: json['color'] as int?,
+      finishedAt: json['finishedAt'] as bool? ?? false,
+      notificationIds: json['notificationIds'] == null
+          ? null
+          : List<int>.from(json['notificationIds'] as List),
     );
   }
 
@@ -111,9 +124,7 @@ class Medication {
       'durationBreak': durationBreak?.toJson(),
       'dosage': dosage,
       'dosageType': dosageType.name,
-      'intakeTime': intakeTime
-          .map((t) => {'hour': t.hour, 'minute': t.minute})
-          .toList(),
+      'intakeTime': intakeTime.map((t) => t.toJson()).toList(),
       // 'intakeTime': intakeTime.map((t) => '${t.hour}:${t.minute}').toList(),
       'repeatRule': {
         'type': repeatRule.type.name,
@@ -122,6 +133,9 @@ class Medication {
       },
       'symptoms': symptoms,
       'photoUrl': photoUrl,
+      'color': color,
+      'finishedAt': finishedAt,
+      'notificationIds': notificationIds,
     };
   }
 }
