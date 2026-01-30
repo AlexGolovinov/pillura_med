@@ -40,7 +40,7 @@ class _ManualIntakeWidgetState extends State<ManualIntakeWidget> {
       // Проверка минимальной разницы в 5 минут
       final isTooClose = times.any((t) {
         final diff = _timeDifferenceInMinutes(t, time);
-        return diff.abs() < 5;
+        return diff.abs() < 1;
       });
 
       if (isTooClose) {

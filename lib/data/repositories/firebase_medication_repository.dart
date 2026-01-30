@@ -22,7 +22,7 @@ class FirebaseMedicationRepository implements MedicationRepository {
   }
 
   @override
-  Future<void> add(Medication medication) async {
+  Future<String> add(Medication medication) async {
     final collection = firestore.collection('medications');
     final docRef = collection.doc(); // создаём ID локально
 
@@ -30,6 +30,7 @@ class FirebaseMedicationRepository implements MedicationRepository {
 
     await docRef.set(medWithId.toJson());
     await NotificationService.scheduleMedication(medWithId);
+    return docRef.id;
   }
 
   @override

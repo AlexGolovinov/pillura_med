@@ -1,7 +1,13 @@
+import 'dart:convert';
 import 'dart:developer';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pillura_med/presentation/providers/medication_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
+import '../domain/entities/intake_time.dart';
 import '../domain/entities/medication.dart';
 import '../domain/enums/course_duration_unit.dart';
 
@@ -41,9 +47,16 @@ AndroidFlutterLocalNotificationsPlugin? get _androidImplementation =>
           AndroidFlutterLocalNotificationsPlugin
         >();
 
+final notificationServiceProvider = Provider<NotificationService>((ref) {
+  return NotificationService(ref: ref);
+});
+
 class NotificationService {
+  final Ref ref;
+  NotificationService({required this.ref});
+
   /// Инициализация (один раз в main)
-  static Future<void> init() async {
+  Future<void> init() async {
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const DarwinInitializationSettings iosSettings =
@@ -51,23 +64,38 @@ class NotificationService {
 
     await notifications.initialize(
       const InitializationSettings(android: androidSettings, iOS: iosSettings),
-
-      onDidReceiveNotificationResponse: (response) {
-        log('Notification tapped: ${response.payload}');
-      },
+      onDidReceiveNotificationResponse: (response) =>
+          foregroundNotificationHandler(response, ref),
+      onDidReceiveBackgroundNotificationResponse: backgroundNotificationHandler,
     );
 
-    // Create Android channel if possible
-    // final androidImpl = _androidImplementation;
-    // if (androidImpl != null) {
-    //   const AndroidNotificationChannel channel = AndroidNotificationChannel(
-    //     'med_channel',
-    //     'Лекарства',
-    //     description: 'Уведомления о приёме лекарств',
-    //     importance: Importance.max,
-    //   );
-    //   await androidImpl.createNotificationChannel(channel);
-    // }
+    // Create Android channels
+    final androidImpl = _androidImplementation;
+    if (androidImpl != null) {
+      // Channel для мгновенных уведомлений
+      const AndroidNotificationChannel instantChannel =
+          AndroidNotificationChannel(
+            'instant_notification_channel_id',
+            'Лекарства',
+            description: 'Мгновенные уведомления о приёме лекарств',
+            importance: Importance.max,
+            enableVibration: true,
+            enableLights: true,
+          );
+      await androidImpl.createNotificationChannel(instantChannel);
+
+      // Channel для запланированных уведомлений
+      const AndroidNotificationChannel reminderChannel =
+          AndroidNotificationChannel(
+            'reminder_notification_channel_id',
+            'Напоминания',
+            description: 'Запланированные напоминания о приёме лекарств',
+            importance: Importance.max,
+            enableVibration: true,
+            enableLights: true,
+          );
+      await androidImpl.createNotificationChannel(reminderChannel);
+    }
   }
 
   /// Перепланировать ВСЕ активные лекарства
@@ -126,6 +154,11 @@ class NotificationService {
         final scheduledDate = tz.TZDateTime.from(date, tz.local);
         log('Scheduled TZDateTime: $scheduledDate');
         log('tz.local: ${tz.TZDateTime.now(tz.local)}');
+        final payloadData = jsonEncode({
+          'medId': med.id,
+          'hour': date.hour,
+          'minute': date.minute,
+        });
         final notificationId = await getNextNotificationId();
         await notifications.zonedSchedule(
           notificationId,
@@ -137,11 +170,24 @@ class NotificationService {
               'med_channel',
               'Лекарства',
               importance: Importance.max,
-              priority: Priority.high,
+              priority: Priority.max,
+              actions: <AndroidNotificationAction>[
+                AndroidNotificationAction(
+                  'action_take',
+                  'Принял',
+                  showsUserInterface: true,
+                ),
+                AndroidNotificationAction(
+                  'action_skip',
+                  'Пропустить',
+                  showsUserInterface: false,
+                ),
+              ],
             ),
             iOS: DarwinNotificationDetails(),
           ),
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          payload: payloadData,
         );
         notificationIds.add(notificationId);
       }
@@ -173,6 +219,11 @@ class NotificationService {
     required String body,
   }) async {
     final pending = await notifications.pendingNotificationRequests();
+    final payloadData = jsonEncode({
+      'medId': 'T3eEE31N5mWCuNw1DM4V',
+      'hour': 10,
+      'minute': 54,
+    });
     for (var n in pending) {
       log(
         'ID: ${n.id}, Title: ${n.title}, Body: ${n.body}, Payload: ${n.payload}',
@@ -188,30 +239,23 @@ class NotificationService {
           'Лекарства',
           importance: Importance.max,
           priority: Priority.max,
-          fullScreenIntent: true,
-          category: AndroidNotificationCategory.alarm,
-          autoCancel: false,
-          ongoing: true,
+          color: const Color(0xFF008080),
           actions: <AndroidNotificationAction>[
             AndroidNotificationAction(
-              'action_take', // уникальный id действия
-              'Принял', // текст кнопки
-              showsUserInterface: true, // открыть приложение при нажатии
+              'action_take',
+              'Принял',
+              showsUserInterface: true,
             ),
             AndroidNotificationAction(
               'action_skip',
               'Пропустить',
-              showsUserInterface: true,
-            ),
-            AndroidNotificationAction(
-              'action_snooze',
-              'Через 10 мин',
-              showsUserInterface: true,
+              showsUserInterface: false,
             ),
           ],
         ),
         iOS: DarwinNotificationDetails(),
       ),
+      payload: payloadData,
     );
   }
 
@@ -222,7 +266,11 @@ class NotificationService {
   }) async {
     final currentDateTime = DateTime.now().add(Duration(seconds: 3));
     final scheduledDate = tz.TZDateTime.from(currentDateTime, tz.local);
-
+    final payloadData = jsonEncode({
+      'medId': 'T3eEE31N5mWCuNw1DM4V',
+      'hour': 10,
+      'minute': 54,
+    });
     await notifications.zonedSchedule(
       id,
       title,
@@ -234,30 +282,99 @@ class NotificationService {
           'Напоминания',
           importance: Importance.max,
           priority: Priority.max,
-          category: AndroidNotificationCategory.alarm,
           autoCancel: false,
           ongoing: true,
           actions: <AndroidNotificationAction>[
             AndroidNotificationAction(
-              'action_take', // уникальный id действия
-              'Принял', // текст кнопки
-              showsUserInterface: true, // открыть приложение при нажатии
+              'action_take',
+              'Принял',
+              showsUserInterface: true,
             ),
             AndroidNotificationAction(
               'action_skip',
               'Пропустить',
-              showsUserInterface: true,
-            ),
-            AndroidNotificationAction(
-              'action_snooze',
-              'Через 10 мин',
-              showsUserInterface: true,
+              showsUserInterface: false,
             ),
           ],
         ),
         iOS: DarwinNotificationDetails(),
       ),
+      payload: payloadData,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
+  }
+}
+
+Future<void> foregroundNotificationHandler(
+  NotificationResponse response,
+  Ref ref,
+) async {
+  log('📲 onDidReceiveNotificationResponse: ${response.payload}');
+  log('Action ID: ${response.actionId}');
+  log('Payload: ${response.payload}');
+  final payload = response.payload;
+  if (response.actionId == null) {
+    // Пользователь просто нажал на уведомление, без выбора действия
+    return;
+  }
+  if (payload == null) {
+    log('Payload null!');
+    return;
+  }
+
+  Map<String, dynamic>? data;
+  try {
+    data = jsonDecode(payload) as Map<String, dynamic>;
+  } catch (e) {
+    return;
+  }
+
+  final medId = data['medId'];
+  final hour = data['hour'];
+  final minute = data['minute'];
+
+  ref
+      .read(medicationNotifierProvider.notifier)
+      .updateIntakeTime(
+        medId,
+        IntakeTime(
+          time: TimeOfDay(hour: hour, minute: minute),
+        ),
+        response.actionId == 'action_take' ? true : false,
+      );
+}
+
+@pragma('vm:entry-point')
+Future<void> backgroundNotificationHandler(
+  NotificationResponse response,
+) async {
+  log('📲 backgroundNotificationHandler вызвана');
+  log('Action ID: ${response.actionId}');
+  log('Payload: ${response.payload}');
+
+  final payload = response.payload;
+  if (payload == null) {
+    log('Payload null!');
+    return;
+  }
+
+  Map<String, dynamic>? data;
+  try {
+    data = jsonDecode(payload) as Map<String, dynamic>;
+  } catch (e) {
+    return;
+  }
+
+  final medId = data['medId'];
+  final hour = data['hour'];
+  final minute = data['minute'];
+  final prefs = await SharedPreferences.getInstance();
+  final key = 'taken_${medId}_${hour}_$minute';
+
+  if (response.actionId == 'action_take') {
+    await prefs.setBool(key, true);
+    log('✅ Сохранено в SharedPreferences: $key = true');
+  } else if (response.actionId == 'action_skip') {
+    await prefs.setBool(key, false);
   }
 }

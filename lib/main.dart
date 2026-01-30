@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:pillura_med/router/app_router.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -10,16 +9,16 @@ import 'package:timezone/timezone.dart' as tz;
 import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
 import 'core/notification_service.dart';
+import 'presentation/providers/medication_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   tz.initializeTimeZones();
   TimezoneInfo? timezone = await FlutterTimezone.getLocalTimezone();
   tz.setLocalLocation(tz.getLocation(timezone.identifier));
-
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await NotificationService.init();
-  runApp(const ProviderScope(child: MyApp()));
+  //await NotificationService.init();
+  runApp(const ProviderScope(child: AppRoot()));
 }
 
 class MyApp extends ConsumerWidget {
@@ -37,24 +36,45 @@ class MyApp extends ConsumerWidget {
   }
 }
 
-class MyWidget extends StatelessWidget {
-  const MyWidget({super.key});
+/// Root widget that has access to the current `Ref` and registers
+/// lifecycle listener and performs initial sync using that `Ref`.
+class AppRoot extends ConsumerStatefulWidget {
+  const AppRoot({super.key});
+
+  @override
+  ConsumerState<AppRoot> createState() => _AppRootState();
+}
+
+class _AppRootState extends ConsumerState<AppRoot> {
+  AppLifecycleListener? _listener;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      ref.read(notificationServiceProvider).init();
+    });
+    // Perform initial sync using the current ref
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(medicationNotifierProvider.notifier).syncTakenFromPrefs();
+    });
+
+    // Register lifecycle listener that uses the same ref
+    _listener = AppLifecycleListener(
+      onResume: () {
+        ref.read(medicationNotifierProvider.notifier).syncTakenFromPrefs();
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _listener?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Google Fonts Example', style: GoogleFonts.lato()),
-      ),
-      body: Center(
-        child: DropdownMenu(
-          dropdownMenuEntries: [
-            DropdownMenuEntry(value: Colors.red, label: 'Красный'),
-            DropdownMenuEntry(value: Colors.green, label: 'Зелёный'),
-            DropdownMenuEntry(value: Colors.blue, label: 'Синий'),
-          ],
-        ),
-      ),
-    );
+    return const MyApp();
   }
 }

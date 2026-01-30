@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pillura_med/domain/entities/intake_time.dart';
 import 'package:pillura_med/presentation/providers/repository_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/entities/course_duration.dart';
 import '../../domain/entities/medication.dart';
 import '../../domain/entities/repeat_rule.dart';
@@ -61,12 +62,12 @@ class MedicationNotifier extends AsyncNotifier<List<Medication>> {
       startDate: startDate,
     );
 
-    final meds = [...?state.value, med];
-
     final now = TimeOfDay.now();
+    final medId = await _repo.add(med);
+    final medWithId = med.copyWith(id: medId);
+    final meds = [...?state.value, medWithId];
     meds.sort((a, b) => compareMedications(a, b, now));
     state = AsyncValue.data(meds);
-    await _repo.add(med); // Firestore обновляем асинхронно
   }
 
   Future<void> deleteMedication(String id) async {
@@ -82,7 +83,10 @@ class MedicationNotifier extends AsyncNotifier<List<Medication>> {
     IntakeTime intakeTime,
     bool isTaken,
   ) async {
-    final updatedMeds = (state.value ?? []).map((med) {
+    // Ждем пока данные загрузятся, если еще не загружены
+    final currentMeds = state.value ?? await future;
+
+    final updatedMeds = currentMeds.map((med) {
       if (med.id == id) {
         final updatedIntakeTimes = med.intakeTime.map((time) {
           if (time.time.hour == intakeTime.time.hour &&
@@ -97,6 +101,65 @@ class MedicationNotifier extends AsyncNotifier<List<Medication>> {
     }).toList();
     state = AsyncValue.data(updatedMeds);
     await _repo.updateIntakeTime(id, intakeTime, isTaken);
+  }
+
+  Future<void> syncTakenFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    if (prefs.getKeys().isEmpty) return;
+
+    final keyAndValue = <String, bool?>{};
+    for (final key in prefs.getKeys()) {
+      if (!key.startsWith('taken_')) continue;
+      final value = prefs.getBool(key);
+      if (value != null) {
+        keyAndValue[key] = value;
+        prefs.remove(key);
+      }
+    }
+    if (keyAndValue.isEmpty) return;
+    final current = state.value;
+    if (current != null && keyAndValue.isNotEmpty) {
+      final updated = current.map((med) {
+        final updatedTimes = med.intakeTime.map((t) {
+          final key = 'taken_${med.id}_${t.time.hour}_${t.time.minute}';
+          final taken = keyAndValue[key];
+          return taken != null ? IntakeTime(isTaken: taken, time: t.time) : t;
+        }).toList();
+
+        return med.copyWith(intakeTime: updatedTimes);
+      }).toList();
+
+      state = AsyncValue.data(updated);
+    }
+
+    for (final key in keyAndValue.keys) {
+      final value = keyAndValue[key];
+      if (value != null) {
+        final id = key.split('_')[1];
+        final hour = key.split('_')[2];
+        final minute = key.split('_')[3];
+        final intakeTime = IntakeTime(
+          time: TimeOfDay(hour: int.parse(hour), minute: int.parse(minute)),
+        );
+        await _repo.updateIntakeTime(id, intakeTime, value);
+      }
+    }
+
+    // //await _repo.updateIntakeTime(id, intakeTime, isTaken);
+    // final updatedMeds = (state.value ?? []).map((med) {
+    //   final updatedTimes = med.intakeTime.map((t) {
+    //     final key = 'taken_${med.id}_${t.time.hour}_${t.time.minute}';
+    //     final taken = keyAndValue[key];
+    //     if (taken != null) {
+    //       return IntakeTime(isTaken: taken, time: t.time);
+    //     }
+    //     return t;
+    //   }).toList();
+    //   return med.copyWith(intakeTime: updatedTimes);
+    // }).toList();
+
+    // state = AsyncValue.data(updatedMeds);
   }
 }
 
