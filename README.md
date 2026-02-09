@@ -1,16 +1,27 @@
-# pillura_med
+# Pillura Med
 
-A new Flutter project.
+Flutter mobile application for medication tracking.
 
-## Getting Started
+## Description
+A mobile app built with Flutter for managing medications and reminders.
+The project was developed as a personal project to practice Flutter architecture,
+state management, and Firebase integration.
 
-This project is a starting point for a Flutter application.
+## Features
+- Medication list management
+- Firebase Authentication
+- Cloud Firestore integration
+- Push notifications
 
-A few resources to get you started if this is your first Flutter project:
+## Tech Stack
+- Flutter
+- Dart
+- State Management: Provider / Riverpod
+- Firebase (Auth, Firestore, Push Notifications)
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Project Status
+Personal project. Actively developed and maintained.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+
+## Notes
+Source code is provided for demonstration purposes.

@@ -239,7 +239,6 @@ class NotificationService {
           'Лекарства',
           importance: Importance.max,
           priority: Priority.max,
-          color: const Color(0xFF008080),
           actions: <AndroidNotificationAction>[
             AndroidNotificationAction(
               'action_take',

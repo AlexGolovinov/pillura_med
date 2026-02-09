@@ -56,8 +56,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 return Expanded(
                   child: ListView.builder(
                     shrinkWrap: true,
-                    itemCount: data.length,
+                    itemCount: data.length + 1,
                     itemBuilder: (context, index) {
+                      if (index == data.length) {
+                        return SizedBox(height: 80);
+                      }
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12.0),
                         child: MedicationCard(

@@ -44,6 +44,7 @@ class MedicationNotifier extends AsyncNotifier<List<Medication>> {
     int? color,
     required DateTime startDate,
   }) async {
+    state = const AsyncValue.loading();
     final med = Medication(
       id: '',
       userId: '',
@@ -71,10 +72,10 @@ class MedicationNotifier extends AsyncNotifier<List<Medication>> {
   }
 
   Future<void> deleteMedication(String id) async {
-    await _repo.cancelNotificationsForMedication(id);
     state = AsyncValue.data(
       (state.value ?? []).where((m) => m.id != id).toList(),
     );
+    await _repo.cancelNotificationsForMedication(id);
     await _repo.delete(id);
   }
 
