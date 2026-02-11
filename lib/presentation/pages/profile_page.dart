@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:implicitly_animated_reorderable_list_2/implicitly_animated_reorderable_list_2.dart';
 import 'package:pillura_med/domain/enums/course_duration_unit.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/presentation/providers/medication_provider.dart';
@@ -54,45 +55,127 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             medication.when(
               data: (data) {
                 return Expanded(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: data.length + 1,
-                    itemBuilder: (context, index) {
-                      if (index == data.length) {
-                        return SizedBox(height: 80);
-                      }
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12.0),
-                        child: MedicationCard(
-                          title: data[index].medication.name,
-                          dosage: data[index].medication.dosage.toString(),
-                          dosageType:
-                              data[index].medication.dosageType.shortLabel,
-                          startDate: data[index].medication.startDate,
-                          intakeRecords: data[index].todaysIntakes,
-                          courseInfo: getCourseEndDate(data[index].medication),
-                          color: data[index].medication.color != null
-                              ? Color(data[index].medication.color!)
-                              : null,
-                          deleteMedication: () {
-                            ref
-                                .read(medicationNotifierProvider.notifier)
-                                .deleteMedication(data[index].medication.id);
-                          },
-                          onTake: (IntakeRecord record) {
-                            ref
-                                .read(medicationNotifierProvider.notifier)
-                                .updateIntakeTimeFromRecord(record, true);
-                          },
-                          onSkip: (IntakeRecord record) {
-                            ref
-                                .read(medicationNotifierProvider.notifier)
-                                .updateIntakeTimeFromRecord(record, false);
-                          },
+                  child: ImplicitlyAnimatedList<MedicationWithIntakes>(
+                    items: data,
+                    areItemsTheSame: (a, b) =>
+                        a.medication.id == b.medication.id,
+                    insertDuration: const Duration(milliseconds: 600),
+                    removeDuration: const Duration(milliseconds: 400),
+                    scrollDirection: Axis.vertical,
+                    itemBuilder: (context, animation, item, index) {
+                      // Создаем анимацию смещения по аналогии с вашим примером
+                      final slideAnimation = animation.drive(
+                        Tween<Offset>(
+                          begin: const Offset(1, 0), // Появляется справа
+                          end: Offset.zero, // Встает на место
+                        ).chain(CurveTween(curve: Curves.easeInOutCubic)),
+                      );
+
+                      return SlideTransition(
+                        position: slideAnimation,
+                        child: Padding(
+                          key: ValueKey(item.medication.id),
+                          padding: const EdgeInsets.only(bottom: 12.0),
+                          child: MedicationCard(
+                            title: item.medication.name,
+                            dosage: item.medication.dosage.toString(),
+                            dosageType: item.medication.dosageType.shortLabel,
+                            startDate: item.medication.startDate,
+                            intakeRecords: item.todaysIntakes,
+                            courseInfo: getCourseEndDate(item.medication),
+                            color: item.medication.color != null
+                                ? Color(item.medication.color!)
+                                : null,
+                            deleteMedication: () {
+                              ref
+                                  .read(medicationNotifierProvider.notifier)
+                                  .deleteMedication(item.medication.id);
+                            },
+                            onTake: (IntakeRecord record) {
+                              ref
+                                  .read(medicationNotifierProvider.notifier)
+                                  .updateIntakeTimeFromRecord(record, true);
+                            },
+                            onSkip: (IntakeRecord record) {
+                              ref
+                                  .read(medicationNotifierProvider.notifier)
+                                  .updateIntakeTimeFromRecord(record, false);
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                    removeItemBuilder: (context, animation, oldItem) {
+                      // При удалении элемент уезжает вправо
+                      final slideAnimation = animation.drive(
+                        Tween<Offset>(
+                          begin: const Offset(1, 0),
+                          end: Offset.zero,
+                        ).chain(CurveTween(curve: Curves.easeInOutCubic)),
+                      );
+
+                      return SlideTransition(
+                        position: slideAnimation,
+                        child: FadeTransition(
+                          opacity: animation,
+                          child: MedicationCard(
+                            title: oldItem.medication.name,
+                            dosage: oldItem.medication.dosage.toString(),
+                            dosageType:
+                                oldItem.medication.dosageType.shortLabel,
+                            startDate: oldItem.medication.startDate,
+                            intakeRecords: oldItem.todaysIntakes,
+                            courseInfo: getCourseEndDate(oldItem.medication),
+                            color: oldItem.medication.color != null
+                                ? Color(oldItem.medication.color!)
+                                : null,
+                            deleteMedication: () {},
+                            onTake: (IntakeRecord p1) {},
+                            onSkip: (IntakeRecord p1) {},
+                          ),
                         ),
                       );
                     },
                   ),
+                  // ListView.builder(
+                  //   shrinkWrap: true,
+                  //   itemCount: data.length + 1,
+                  //   itemBuilder: (context, index) {
+                  //     if (index == data.length) {
+                  //       return SizedBox(height: 80);
+                  //     }
+                  //     return Padding(
+                  //       padding: const EdgeInsets.only(bottom: 12.0),
+                  //       child: MedicationCard(
+                  //         title: data[index].medication.name,
+                  //         dosage: data[index].medication.dosage.toString(),
+                  //         dosageType:
+                  //             data[index].medication.dosageType.shortLabel,
+                  //         startDate: data[index].medication.startDate,
+                  //         intakeRecords: data[index].todaysIntakes,
+                  //         courseInfo: getCourseEndDate(data[index].medication),
+                  //         color: data[index].medication.color != null
+                  //             ? Color(data[index].medication.color!)
+                  //             : null,
+                  //         deleteMedication: () {
+                  //           ref
+                  //               .read(medicationNotifierProvider.notifier)
+                  //               .deleteMedication(data[index].medication.id);
+                  //         },
+                  //         onTake: (IntakeRecord record) {
+                  //           ref
+                  //               .read(medicationNotifierProvider.notifier)
+                  //               .updateIntakeTimeFromRecord(record, true);
+                  //         },
+                  //         onSkip: (IntakeRecord record) {
+                  //           ref
+                  //               .read(medicationNotifierProvider.notifier)
+                  //               .updateIntakeTimeFromRecord(record, false);
+                  //         },
+                  //       ),
+                  //     );
+                  //   },
+                  // ),
                 );
               },
               loading: () => Center(child: CircularProgressIndicator()),

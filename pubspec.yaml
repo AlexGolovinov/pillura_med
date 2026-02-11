@@ -45,6 +45,7 @@ dependencies:
   flutter_local_notifications: ^19.5.0
   flutter_timezone: ^5.0.1
   shared_preferences: ^2.5.4
+  implicitly_animated_reorderable_list_2: ^0.6.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

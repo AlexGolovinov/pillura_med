@@ -218,7 +218,6 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
   ) async {
     try {
       if (record.medicationId == null) return;
-      final intakeTime = TimeOfDay.fromDateTime(record.scheduledDateTime);
       await _repo.updateIntakeTime(record, isTaken);
 
       final current = state.value ?? [];
@@ -242,7 +241,10 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
 
         return group.copyWith(todaysIntakes: updatedIntakes);
       }).toList();
+      updatedList.sort((a, b) => compareMedicationGroups(a, b, DateTime.now()));
       state = AsyncValue.data(updatedList);
+      // // Notify the state after sorting to trigger UI updates
+      // notifyListChanged();
     } catch (e) {
       log('Error updating intake time from record: $e');
     }
@@ -284,6 +286,10 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
       log('Error syncing taken status from prefs: $e');
     }
     // Update the repository with the taken status from SharedPreferences
+  }
+
+  void notifyListChanged() {
+    state = AsyncValue.data(state.value ?? []);
   }
 }
 
