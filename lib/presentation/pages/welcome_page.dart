@@ -68,6 +68,15 @@ class WelcomePage extends ConsumerWidget {
                     },
                     child: Text("Запланированное уведомление"),
                   ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final permissions = await checkPermissions();
+                      if (permissions) {
+                        NotificationService.checkPendingNotifications();
+                      }
+                    },
+                    child: Text("Проверить активные уведомления"),
+                  ),
                 ],
               );
             }

@@ -1,33 +1,129 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:pillura_med/domain/entities/intake_time.dart';
 import 'package:pillura_med/presentation/providers/repository_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/entities/course_duration.dart';
+import '../../domain/entities/intake_rec/intake_record.dart';
 import '../../domain/entities/medication.dart';
 import '../../domain/entities/repeat_rule.dart';
 import '../../domain/enums/dosage_type.dart';
 import '../../domain/enums/meal_relation.dart';
 import '../../domain/repositories/medication_repository.dart';
 
-class MedicationNotifier extends AsyncNotifier<List<Medication>> {
+class MedicationWithIntakes {
+  final Medication medication;
+  final List<IntakeRecord>
+  todaysIntakes; // Только на сегодня, отсортированные по времени
+
+  MedicationWithIntakes(this.medication, this.todaysIntakes);
+
+  MedicationWithIntakes copyWith({
+    Medication? medication,
+    List<IntakeRecord>? todaysIntakes,
+  }) {
+    return MedicationWithIntakes(
+      medication ?? this.medication,
+      todaysIntakes ?? this.todaysIntakes,
+    );
+  }
+}
+
+class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
   late final MedicationRepository _repo;
   @override
-  Future<List<Medication>> build() async {
+  Future<List<MedicationWithIntakes>> build() async {
     _repo = ref.read(
       medicationFRepositoryProvider,
     ); // <- берём репозиторий через провайдер
     final meds = await _repo.getAll();
 
-    // Сортировка по ближайшему предстоящему приему
-    final now = TimeOfDay.now();
-    meds.sort((a, b) => compareMedications(a, b, now));
+    final todayGroups = <MedicationWithIntakes>[];
+
+    for (final med in meds) {
+      final intakes = await _repo.getTodaysIntakes(med.id);
+      if (intakes.isNotEmpty) {
+        // Сортировка intakes по времени (если не отсортировано в repo)
+        intakes.sort(
+          (a, b) => a.scheduledDateTime.compareTo(b.scheduledDateTime),
+        );
+
+        todayGroups.add(MedicationWithIntakes(med, intakes));
+      }
+    }
+    final now = DateTime.now();
+    todayGroups.sort((a, b) => compareMedicationGroups(a, b, now));
+
+    // // Сортировка по ближайшему предстоящему приему
+    // final now = TimeOfDay.now();
+    // meds.sort((a, b) => compareMedications(a, b, now));
 
     // if (meds.isNotEmpty) {
     //   await NotificationService.scheduleMedication(meds.first);
     // }
 
-    return meds;
+    return todayGroups;
+  }
+
+  int compareMedicationGroups(
+    MedicationWithIntakes a,
+    MedicationWithIntakes b,
+    DateTime now,
+  ) {
+    int getGroupPriority(MedicationWithIntakes group) {
+      final hasNotTaken = group.todaysIntakes.any((i) => i.isTaken == null);
+
+      if (hasNotTaken) return 0;
+
+      final hasFuture = group.todaysIntakes.any(
+        (i) => i.scheduledDateTime.isAfter(now),
+      );
+
+      if (hasFuture) return 1;
+
+      return 2;
+    }
+
+    DateTime getReferenceTime(MedicationWithIntakes group) {
+      // ближайшее неотмеченное
+      final notTaken =
+          group.todaysIntakes.where((i) => i.isTaken == null).toList()..sort(
+            (a, b) => a.scheduledDateTime.compareTo(b.scheduledDateTime),
+          );
+
+      if (notTaken.isNotEmpty) {
+        return notTaken.first.scheduledDateTime;
+      }
+
+      // ближайшее будущее
+      final future =
+          group.todaysIntakes
+              .where((i) => i.scheduledDateTime.isAfter(now))
+              .toList()
+            ..sort(
+              (a, b) => a.scheduledDateTime.compareTo(b.scheduledDateTime),
+            );
+
+      if (future.isNotEmpty) {
+        return future.first.scheduledDateTime;
+      }
+
+      // иначе последнее по времени
+      return group.todaysIntakes.last.scheduledDateTime;
+    }
+
+    final priorityA = getGroupPriority(a);
+    final priorityB = getGroupPriority(b);
+
+    if (priorityA != priorityB) {
+      return priorityA.compareTo(priorityB);
+    }
+
+    final timeA = getReferenceTime(a);
+    final timeB = getReferenceTime(b);
+
+    return timeA.compareTo(timeB);
   }
 
   Future<void> add({
@@ -36,7 +132,7 @@ class MedicationNotifier extends AsyncNotifier<List<Medication>> {
     required DosageType dosageType,
     required MealRelation mealRelation,
     required RepeatRule interval,
-    required List<IntakeTime> intakeTime,
+    required List<TimeOfDay> intakeTime,
     CourseDuration? durationTaking,
     CourseDuration? durationBreak,
     String? reason,
@@ -44,7 +140,6 @@ class MedicationNotifier extends AsyncNotifier<List<Medication>> {
     int? color,
     required DateTime startDate,
   }) async {
-    state = const AsyncValue.loading();
     final med = Medication(
       id: '',
       userId: '',
@@ -63,17 +158,46 @@ class MedicationNotifier extends AsyncNotifier<List<Medication>> {
       startDate: startDate,
     );
 
-    final now = TimeOfDay.now();
+    // 1. Сохраняем лекарство в репозитории → получаем реальный id
     final medId = await _repo.add(med);
     final medWithId = med.copyWith(id: medId);
-    final meds = [...?state.value, medWithId];
-    meds.sort((a, b) => compareMedications(a, b, now));
-    state = AsyncValue.data(meds);
+
+    // 2. Определяем, есть ли у этого лекарства приёмы именно на сегодня
+    //    (это важно, чтобы сразу решить — попадёт ли оно в список или нет)
+    //final today = DateTime.now();
+    final todaysIntakes = await _repo.getTodaysIntakes(medWithId.id);
+
+    // 3. Берём текущее состояние (если есть)
+    final current = state.value ?? <MedicationWithIntakes>[];
+
+    // 4. Формируем обновлённый список
+    final updatedList = <MedicationWithIntakes>[];
+
+    // Копируем старые группы, исключая те, у которых уже нет приёмов на сегодня
+    // (на случай если кто-то из предыдущих теперь "выпал" — но обычно не нужно)
+    for (final group in current) {
+      // Опционально: можно здесь перезагружать todaysIntakes для каждого,
+      // но для производительности чаще просто добавляем новое и сортируем
+      updatedList.add(group);
+    }
+
+    // 5. Если у нового лекарства есть приёмы на сегодня → добавляем группу
+    if (todaysIntakes.isNotEmpty) {
+      final newGroup = MedicationWithIntakes(medWithId, todaysIntakes);
+      updatedList.add(newGroup);
+    }
+
+    // 6. Сортируем весь список по ближайшему предстоящему приёму
+    final now = DateTime.now(); // более точное время, чем TimeOfDay
+    updatedList.sort((a, b) => compareMedicationGroups(a, b, now));
+
+    // 7. Устанавливаем новое состояние
+    state = AsyncValue.data(updatedList);
   }
 
   Future<void> deleteMedication(String id) async {
     state = AsyncValue.data(
-      (state.value ?? []).where((m) => m.id != id).toList(),
+      (state.value ?? []).where((m) => m.medication.id != id).toList(),
     );
     await _repo.cancelNotificationsForMedication(id);
     await _repo.delete(id);
@@ -81,27 +205,53 @@ class MedicationNotifier extends AsyncNotifier<List<Medication>> {
 
   Future<void> updateIntakeTime(
     String id,
-    IntakeTime intakeTime,
+    IntakeRecord intakeRecord,
     bool isTaken,
   ) async {
-    // Ждем пока данные загрузятся, если еще не загружены
-    final currentMeds = state.value ?? await future;
+    // Just update the repository, the state is managed by intakeRecords
+    await _repo.updateIntakeTime(intakeRecord, isTaken);
+  }
 
-    final updatedMeds = currentMeds.map((med) {
-      if (med.id == id) {
-        final updatedIntakeTimes = med.intakeTime.map((time) {
-          if (time.time.hour == intakeTime.time.hour &&
-              time.time.minute == intakeTime.time.minute) {
-            return IntakeTime(isTaken: isTaken, time: time.time);
+  Future<void> updateIntakeTimeFromRecord(
+    IntakeRecord record,
+    bool isTaken,
+  ) async {
+    try {
+      if (record.medicationId == null) return;
+      final intakeTime = TimeOfDay.fromDateTime(record.scheduledDateTime);
+      await _repo.updateIntakeTime(record, isTaken);
+
+      final current = state.value ?? [];
+
+      final updatedList = current.map((group) {
+        if (group.medication.id != record.medicationId) {
+          return group;
+        }
+
+        final updatedIntakes = group.todaysIntakes.map((intake) {
+          // Сравниваем по времени (лучше использовать == на DateTime, если есть секунды — можно округлить)
+          if (intake.scheduledDateTime.hour == record.scheduledDateTime.hour &&
+              intake.scheduledDateTime.minute ==
+                  record.scheduledDateTime.minute) {
+            return intake.copyWith(
+              isTaken: isTaken,
+            ); // ← если IntakeRecord тоже имеет copyWith
           }
-          return time;
+          return intake;
         }).toList();
-        return med.copyWith(intakeTime: updatedIntakeTimes);
-      }
-      return med;
-    }).toList();
-    state = AsyncValue.data(updatedMeds);
-    await _repo.updateIntakeTime(id, intakeTime, isTaken);
+
+        return group.copyWith(todaysIntakes: updatedIntakes);
+      }).toList();
+      state = AsyncValue.data(updatedList);
+    } catch (e) {
+      log('Error updating intake time from record: $e');
+    }
+  }
+
+  Future<IntakeRecord> getIntakeRecordById(String id) async {
+    // Здесь нужно обратиться к репозиторию, который умеет искать по id
+    // Например:
+    return await _repo.getIntakeRecordById(id);
   }
 
   Future<void> syncTakenFromPrefs() async {
@@ -119,48 +269,21 @@ class MedicationNotifier extends AsyncNotifier<List<Medication>> {
       }
     }
     if (keyAndValue.isEmpty) return;
-    final current = state.value;
-    if (current != null && keyAndValue.isNotEmpty) {
-      final updated = current.map((med) {
-        final updatedTimes = med.intakeTime.map((t) {
-          final key = 'taken_${med.id}_${t.time.hour}_${t.time.minute}';
-          final taken = keyAndValue[key];
-          return taken != null ? IntakeTime(isTaken: taken, time: t.time) : t;
-        }).toList();
 
-        return med.copyWith(intakeTime: updatedTimes);
-      }).toList();
+    try {
+      for (final key in keyAndValue.keys) {
+        final value = keyAndValue[key];
+        if (value != null) {
+          final recordId = key.split('_')[2];
 
-      state = AsyncValue.data(updated);
-    }
-
-    for (final key in keyAndValue.keys) {
-      final value = keyAndValue[key];
-      if (value != null) {
-        final id = key.split('_')[1];
-        final hour = key.split('_')[2];
-        final minute = key.split('_')[3];
-        final intakeTime = IntakeTime(
-          time: TimeOfDay(hour: int.parse(hour), minute: int.parse(minute)),
-        );
-        await _repo.updateIntakeTime(id, intakeTime, value);
+          final record = await _repo.getIntakeRecordById(recordId);
+          await updateIntakeTimeFromRecord(record, value);
+        }
       }
+    } catch (e) {
+      log('Error syncing taken status from prefs: $e');
     }
-
-    // //await _repo.updateIntakeTime(id, intakeTime, isTaken);
-    // final updatedMeds = (state.value ?? []).map((med) {
-    //   final updatedTimes = med.intakeTime.map((t) {
-    //     final key = 'taken_${med.id}_${t.time.hour}_${t.time.minute}';
-    //     final taken = keyAndValue[key];
-    //     if (taken != null) {
-    //       return IntakeTime(isTaken: taken, time: t.time);
-    //     }
-    //     return t;
-    //   }).toList();
-    //   return med.copyWith(intakeTime: updatedTimes);
-    // }).toList();
-
-    // state = AsyncValue.data(updatedMeds);
+    // Update the repository with the taken status from SharedPreferences
   }
 }
 
@@ -178,10 +301,10 @@ int compareMedications(Medication a, Medication b, TimeOfDay now) {
   return minutesA.compareTo(minutesB);
 }
 
-TimeOfDay? getNextIntake(List<IntakeTime> times, TimeOfDay now) {
+TimeOfDay? getNextIntake(List<TimeOfDay> times, TimeOfDay now) {
   // Так как список отсортирован, просто ищем ПЕРВЫЙ будущий прием
   for (final intake in times) {
-    final t = intake.time;
+    final t = intake;
     if (t.hour > now.hour || (t.hour == now.hour && t.minute > now.minute)) {
       return t; // Нашли! Остальные можно не смотреть.
     }
@@ -190,6 +313,6 @@ TimeOfDay? getNextIntake(List<IntakeTime> times, TimeOfDay now) {
 }
 
 final medicationNotifierProvider =
-    AsyncNotifierProvider<MedicationNotifier, List<Medication>>(
+    AsyncNotifierProvider<MedicationNotifier, List<MedicationWithIntakes>>(
       () => MedicationNotifier(),
     );

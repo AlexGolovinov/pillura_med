@@ -1,15 +1,13 @@
 import 'dart:convert';
 import 'dart:developer';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pillura_med/presentation/providers/medication_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
-import '../domain/entities/intake_time.dart';
+import '../domain/entities/intake_rec/intake_record.dart';
 import '../domain/entities/medication.dart';
-import '../domain/enums/course_duration_unit.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -98,44 +96,11 @@ class NotificationService {
     }
   }
 
-  /// Перепланировать ВСЕ активные лекарства
-  static Future<void> rescheduleAll(List<Medication> meds) async {
-    await notifications.cancelAll();
-
-    for (final med in meds) {
-      if (med.finishedAt == false) {
-        await scheduleMedication(med);
-      }
-    }
-  }
-
-  static List<DateTime> getTimeListFromInterval(Medication med) {
-    final dates = <DateTime>[];
-    final int totalDays =
-        med.durationTaking!.count *
-        (med.durationTaking!.unit == CourseDurationUnit.day
-            ? 1
-            : med.durationTaking!.unit == CourseDurationUnit.week
-            ? 7
-            : 30);
-
-    for (var i = 0; i < totalDays; i++) {
-      for (var j = 0; j < med.intakeTime.length; j++) {
-        final date = DateTime(
-          med.startDate.year,
-          med.startDate.month,
-          med.startDate.day + i,
-          med.intakeTime[j].time.hour,
-          med.intakeTime[j].time.minute,
-        );
-        dates.add(date);
-      }
-    }
-    return dates;
-  }
-
   /// Запланировать уведомления для одного лекарства
-  static Future<void> scheduleMedication(Medication med) async {
+  static Future<void> scheduleMedication(
+    List<IntakeRecord> records,
+    Medication med,
+  ) async {
     final bool? grantedNotificationPermission = await _androidImplementation
         ?.requestNotificationsPermission();
     final bool? grantedAlarmPermission = await _androidImplementation
@@ -148,16 +113,16 @@ class NotificationService {
     //final dates = _buildRollingSchedule(med, DateTime.now(), _planDaysAhead);
     final notificationIds = <int>[];
     try {
-      final dates = getTimeListFromInterval(med);
-      for (final date in dates) {
+      // final dates = records.map((r) => r.scheduledDateTime).toList();
+      for (final rec in records) {
+        final date = rec.scheduledDateTime;
         if (date.isBefore(DateTime.now())) continue;
         final scheduledDate = tz.TZDateTime.from(date, tz.local);
         log('Scheduled TZDateTime: $scheduledDate');
         log('tz.local: ${tz.TZDateTime.now(tz.local)}');
         final payloadData = jsonEncode({
           'medId': med.id,
-          'hour': date.hour,
-          'minute': date.minute,
+          'intakeRecordId': rec.id,
         });
         final notificationId = await getNextNotificationId();
         await notifications.zonedSchedule(
@@ -219,10 +184,15 @@ class NotificationService {
     required String body,
   }) async {
     final pending = await notifications.pendingNotificationRequests();
+    final jsonRecord = IntakeRecord(
+      id: 'zo9nPVQjqXsFLbPwTPfJ',
+      medicationId: 'GEPejOCRiiiQswkv8Nkq',
+      isTaken: false,
+      scheduledDateTime: DateTime.parse('2026-02-11T10:45:00.000Z'),
+    );
     final payloadData = jsonEncode({
-      'medId': 'T3eEE31N5mWCuNw1DM4V',
-      'hour': 10,
-      'minute': 54,
+      'medId': 'GEPejOCRiiiQswkv8Nkq',
+      'intakeRecordId': jsonRecord.id,
     });
     for (var n in pending) {
       log(
@@ -258,6 +228,28 @@ class NotificationService {
     );
   }
 
+  static Future<void> checkPendingNotifications() async {
+    final List<PendingNotificationRequest> pending = await notifications
+        .pendingNotificationRequests();
+
+    log('Всего запланировано уведомлений: ${pending.length}');
+
+    if (pending.isEmpty) {
+      log('Нет запланированных уведомлений');
+      return;
+    }
+
+    for (final req in pending) {
+      log('─' * 40);
+      log('ID:          ${req.id}');
+      log('Title:       ${req.title ?? "нет"}');
+      log('Body:        ${req.body ?? "нет"}');
+      log('Payload:     ${req.payload ?? "нет"}');
+      // Внимание: scheduledDateTime здесь НЕ возвращается!
+      // Время показа недоступно через этот метод
+    }
+  }
+
   static Future<void> scheduleReminderNotification({
     required int id,
     required String title,
@@ -266,9 +258,8 @@ class NotificationService {
     final currentDateTime = DateTime.now().add(Duration(seconds: 3));
     final scheduledDate = tz.TZDateTime.from(currentDateTime, tz.local);
     final payloadData = jsonEncode({
-      'medId': 'T3eEE31N5mWCuNw1DM4V',
-      'hour': 10,
-      'minute': 54,
+      'medId': 'GEPejOCRiiiQswkv8Nkq',
+      'intakeRecordId': "zo9nPVQjqXsFLbPwTPfJ",
     });
     await notifications.zonedSchedule(
       id,
@@ -328,17 +319,15 @@ Future<void> foregroundNotificationHandler(
     return;
   }
 
-  final medId = data['medId'];
-  final hour = data['hour'];
-  final minute = data['minute'];
+  final recordId = data['intakeRecordId'];
+  final record = await ref
+      .read(medicationNotifierProvider.notifier)
+      .getIntakeRecordById(recordId!);
 
   ref
       .read(medicationNotifierProvider.notifier)
-      .updateIntakeTime(
-        medId,
-        IntakeTime(
-          time: TimeOfDay(hour: hour, minute: minute),
-        ),
+      .updateIntakeTimeFromRecord(
+        record,
         response.actionId == 'action_take' ? true : false,
       );
 }
@@ -365,10 +354,10 @@ Future<void> backgroundNotificationHandler(
   }
 
   final medId = data['medId'];
-  final hour = data['hour'];
-  final minute = data['minute'];
+  final recordId = data['intakeRecordId'];
+
   final prefs = await SharedPreferences.getInstance();
-  final key = 'taken_${medId}_${hour}_$minute';
+  final key = 'taken_${medId}_$recordId';
 
   if (response.actionId == 'action_take') {
     await prefs.setBool(key, true);

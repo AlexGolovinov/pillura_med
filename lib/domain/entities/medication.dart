@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:copy_with_extension/copy_with_extension.dart';
-import 'package:pillura_med/domain/entities/intake_time.dart';
+import 'package:flutter/material.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/domain/enums/meal_relation.dart';
 import 'package:pillura_med/domain/enums/weekday.dart';
@@ -20,7 +20,7 @@ class Medication {
   final DosageType dosageType;
   final MealRelation mealRelation;
   final RepeatRule repeatRule;
-  final List<IntakeTime> intakeTime;
+  final List<TimeOfDay> intakeTime;
   final CourseDuration? durationTaking;
   final bool withBreak;
   final CourseDuration? durationBreak;
@@ -79,9 +79,14 @@ class Medication {
       dosageType: DosageType.values.firstWhere(
         (e) => e.name == json['dosageType'],
       ),
-      intakeTime: (json['intakeTime'] as List<dynamic>).map((time) {
-        return IntakeTime.fromJson(time as Map<String, dynamic>);
-      }).toList(),
+      intakeTime: (json['intakeTime'] as List<dynamic>)
+          .map(
+            (time) => TimeOfDay(
+              hour: (time['hour'] as int),
+              minute: (time['minute'] as int),
+            ),
+          )
+          .toList(),
       // intakeTime: (json['intakeTime'] as List<dynamic>).map((time) {
       //   final parts = (time as String).split(':');
       //   return TimeOfDay(
@@ -124,7 +129,9 @@ class Medication {
       'durationBreak': durationBreak?.toJson(),
       'dosage': dosage,
       'dosageType': dosageType.name,
-      'intakeTime': intakeTime.map((t) => t.toJson()).toList(),
+      'intakeTime': intakeTime
+          .map((t) => {'hour': t.hour, 'minute': t.minute})
+          .toList(),
       // 'intakeTime': intakeTime.map((t) => '${t.hour}:${t.minute}').toList(),
       'repeatRule': {
         'type': repeatRule.type.name,

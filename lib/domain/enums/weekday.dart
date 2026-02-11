@@ -1,4 +1,15 @@
-enum Weekday { monday, tuesday, wednesday, thursday, friday, saturday, sunday }
+enum Weekday {
+  monday(1),
+  tuesday(2),
+  wednesday(3),
+  thursday(4),
+  friday(5),
+  saturday(6),
+  sunday(7);
+
+  final int isoIndex;
+  const Weekday(this.isoIndex);
+}
 
 extension WeekdayLabel on Weekday {
   String get label {

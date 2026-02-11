@@ -6,7 +6,7 @@ import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/presentation/providers/medication_provider.dart';
 import 'package:pillura_med/presentation/widgets/medication_card.dart';
 
-import '../../domain/entities/intake_time.dart';
+import '../../domain/entities/intake_rec/intake_record.dart';
 import '../../domain/entities/medication.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
@@ -64,29 +64,30 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12.0),
                         child: MedicationCard(
-                          title: data[index].name,
-                          dosage: data[index].dosage.toString(),
-                          dosageType: data[index].dosageType.shortLabel,
-                          startDate: data[index].startDate,
-                          intakeTime: data[index].intakeTime,
-                          courseInfo: getCourseEndDate(data[index]),
-                          color: data[index].color != null
-                              ? Color(data[index].color!)
+                          title: data[index].medication.name,
+                          dosage: data[index].medication.dosage.toString(),
+                          dosageType:
+                              data[index].medication.dosageType.shortLabel,
+                          startDate: data[index].medication.startDate,
+                          intakeRecords: data[index].todaysIntakes,
+                          courseInfo: getCourseEndDate(data[index].medication),
+                          color: data[index].medication.color != null
+                              ? Color(data[index].medication.color!)
                               : null,
                           deleteMedication: () {
                             ref
                                 .read(medicationNotifierProvider.notifier)
-                                .deleteMedication(data[index].id);
+                                .deleteMedication(data[index].medication.id);
                           },
-                          onTake: (IntakeTime time) {
+                          onTake: (IntakeRecord record) {
                             ref
                                 .read(medicationNotifierProvider.notifier)
-                                .updateIntakeTime(data[index].id, time, true);
+                                .updateIntakeTimeFromRecord(record, true);
                           },
-                          onSkip: (IntakeTime time) {
+                          onSkip: (IntakeRecord record) {
                             ref
                                 .read(medicationNotifierProvider.notifier)
-                                .updateIntakeTime(data[index].id, time, false);
+                                .updateIntakeTimeFromRecord(record, false);
                           },
                         ),
                       );
@@ -95,7 +96,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 );
               },
               loading: () => Center(child: CircularProgressIndicator()),
-              error: (error, stack) => Center(child: Text('Ошибка загрузки')),
+              error: (error, stack) => Center(child: Text(error.toString())),
             ),
 
             // Свайп влево: показывает три кнопки (Удалить, Редактировать, Завершить курс)

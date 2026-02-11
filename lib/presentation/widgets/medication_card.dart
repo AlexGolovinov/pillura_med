@@ -2,26 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:pillura_med/core/extension/theme_extension.dart';
 
-import '../../domain/entities/intake_time.dart';
+import '../../domain/entities/intake_rec/intake_record.dart';
 
 class MedicationCard extends StatelessWidget {
   final String title;
   final String dosage;
   final String dosageType;
   final DateTime startDate;
-  final List<IntakeTime> intakeTime;
+  final List<IntakeRecord> intakeRecords;
   final String courseInfo;
   final Color? color;
   final VoidCallback deleteMedication;
-  final Function(IntakeTime) onTake;
-  final Function(IntakeTime) onSkip;
+  final Function(IntakeRecord) onTake;
+  final Function(IntakeRecord) onSkip;
   const MedicationCard({
     super.key,
     required this.title,
     required this.dosage,
     required this.dosageType,
     required this.startDate,
-    required this.intakeTime,
+    required this.intakeRecords,
     required this.deleteMedication,
     required this.courseInfo,
     this.color,
@@ -60,9 +60,20 @@ class MedicationCard extends StatelessWidget {
       );
     }
 
-    int total = intakeTime.length;
-    int isTaken = intakeTime.where((take) => take.isTaken == true).length;
-    int isNotTaken = intakeTime.where((take) => take.isTaken == false).length;
+    // Фильтруем записи на сегодня
+    final today = DateTime.now();
+    final todayRecords = intakeRecords.where((record) {
+      final recordDate = record.scheduledDateTime;
+      return recordDate.year == today.year &&
+          recordDate.month == today.month &&
+          recordDate.day == today.day;
+    }).toList();
+
+    int total = todayRecords.length;
+    int isTaken = todayRecords.where((record) => record.isTaken == true).length;
+    int isNotTaken = todayRecords
+        .where((record) => record.isTaken == false)
+        .length;
     return Slidable(
       key: UniqueKey(),
       endActionPane: ActionPane(
@@ -250,13 +261,16 @@ class MedicationCard extends StatelessWidget {
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
-                          children: List.generate(intakeTime.length, (index) {
-                            final time = intakeTime[index];
+                          children: List.generate(todayRecords.length, (index) {
+                            final record = todayRecords[index];
+                            final time = TimeOfDay.fromDateTime(
+                              record.scheduledDateTime,
+                            );
                             return GestureDetector(
                               onTap: () {
                                 showIntakeDialog(
                                   title,
-                                  intakeTime[index],
+                                  record,
                                   context,
                                   onTake,
                                   onSkip,
@@ -270,9 +284,9 @@ class MedicationCard extends StatelessWidget {
                                     vertical: 8,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: time.isTaken == null
+                                    color: record.isTaken == null
                                         ? Colors.white
-                                        : time.isTaken == true
+                                        : record.isTaken == true
                                         ? const Color(0xFFC6D649)
                                         : Colors.redAccent[100],
                                     borderRadius: BorderRadius.circular(10),
@@ -281,7 +295,7 @@ class MedicationCard extends StatelessWidget {
                                     ),
                                   ),
                                   child: Text(
-                                    '${time.time.hour}:${time.time.minute.toString().padLeft(2, '0')}',
+                                    '${time.hour}:${time.minute.toString().padLeft(2, '0')}',
                                     style: TextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.bold,
@@ -328,15 +342,16 @@ String getMonthName(int month) {
 
 showIntakeDialog(
   String medicationName,
-  IntakeTime intakeTime,
+  IntakeRecord record,
   BuildContext context,
-  Function(IntakeTime) onTake,
-  Function(IntakeTime) onSkip,
+  Function(IntakeRecord) onTake,
+  Function(IntakeRecord) onSkip,
 ) {
   showDialog(
     context: context,
     builder: (context) {
-      final isAfter = intakeTime.time.isAfter(TimeOfDay.now());
+      final time = TimeOfDay.fromDateTime(record.scheduledDateTime);
+      final isAfter = time.isAfter(TimeOfDay.now());
       return AlertDialog(
         title: Text('Информация о приеме'),
         content: Column(
@@ -345,7 +360,7 @@ showIntakeDialog(
           children: [
             Text('Лекарство: $medicationName'),
             Text(
-              'Время приема: ${intakeTime.time.hour}:${intakeTime.time.minute.toString().padLeft(2, '0')}',
+              'Время приема: ${time.hour}:${time.minute.toString().padLeft(2, '0')}',
             ),
           ],
         ),
@@ -360,7 +375,7 @@ showIntakeDialog(
                           foregroundColor: Colors.red,
                         ),
                         onPressed: () {
-                          onSkip(intakeTime);
+                          onSkip(record);
                           Navigator.of(context).pop();
                         },
                         child: Text('Пропустить'),
@@ -373,7 +388,7 @@ showIntakeDialog(
                           foregroundColor: Colors.green,
                         ),
                         onPressed: () {
-                          onTake(intakeTime);
+                          onTake(record);
                           Navigator.of(context).pop();
                         },
                         child: Text('Принять'),

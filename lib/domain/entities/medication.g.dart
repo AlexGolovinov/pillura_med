@@ -21,7 +21,7 @@ abstract class _$MedicationCWProxy {
 
   Medication repeatRule(RepeatRule repeatRule);
 
-  Medication intakeTime(List<IntakeTime> intakeTime);
+  Medication intakeTime(List<TimeOfDay> intakeTime);
 
   Medication durationTaking(CourseDuration? durationTaking);
 
@@ -59,7 +59,7 @@ abstract class _$MedicationCWProxy {
     DosageType dosageType,
     MealRelation mealRelation,
     RepeatRule repeatRule,
-    List<IntakeTime> intakeTime,
+    List<TimeOfDay> intakeTime,
     CourseDuration? durationTaking,
     bool withBreak,
     CourseDuration? durationBreak,
@@ -103,7 +103,7 @@ class _$MedicationCWProxyImpl implements _$MedicationCWProxy {
   Medication repeatRule(RepeatRule repeatRule) => this(repeatRule: repeatRule);
 
   @override
-  Medication intakeTime(List<IntakeTime> intakeTime) =>
+  Medication intakeTime(List<TimeOfDay> intakeTime) =>
       this(intakeTime: intakeTime);
 
   @override
@@ -202,7 +202,7 @@ class _$MedicationCWProxyImpl implements _$MedicationCWProxy {
       intakeTime: intakeTime == const $CopyWithPlaceholder()
           ? _value.intakeTime
           // ignore: cast_nullable_to_non_nullable
-          : intakeTime as List<IntakeTime>,
+          : intakeTime as List<TimeOfDay>,
       durationTaking: durationTaking == const $CopyWithPlaceholder()
           ? _value.durationTaking
           // ignore: cast_nullable_to_non_nullable

@@ -8,7 +8,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:pillura_med/core/extension/theme_extension.dart';
 import 'package:pillura_med/core/extension/time_of_day_extension.dart';
-import 'package:pillura_med/domain/entities/intake_time.dart';
 import 'package:pillura_med/domain/enums/course_duration_unit.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/domain/enums/meal_relation.dart';
@@ -39,7 +38,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
   DosageType? _dosageType;
   MealRelation? _mealRelation;
   RepeatRule? _interval;
-  List<IntakeTime>? _intakeTimes;
+  List<TimeOfDay>? _intakeTimes;
   //List<TimeOfDay>? _intakeTime;
 
   CourseDuration? _durationTaking;
@@ -156,16 +155,12 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                     switchAuto == false
                         ? ManualIntakeWidget(
                             onSaved: (newValue) {
-                              _intakeTimes = newValue!
-                                  .map((e) => IntakeTime(time: e))
-                                  .toList();
+                              _intakeTimes = newValue!.map((e) => e).toList();
                             },
                           )
                         : AutomaticIntervalWidget(
                             onSaved: (newValue) {
-                              _intakeTimes = newValue!
-                                  .map((e) => IntakeTime(time: e))
-                                  .toList();
+                              _intakeTimes = newValue!.map((e) => e).toList();
                             },
                           ),
 
@@ -204,63 +199,65 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                       ),
                       children: [
                         SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Text(
-                              'Разовый прием',
-                              style: !switchWithBreak
-                                  ? TextStyle(
-                                      color: Theme.of(context).primaryColor,
-                                      fontWeight: FontWeight.bold,
-                                    )
-                                  : null,
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(left: 8, right: 8),
-                              child: FlutterSwitch(
-                                height: 41,
-                                activeToggleColor: Colors.indigoAccent,
-                                inactiveToggleColor: Colors.indigoAccent,
-                                inactiveColor: Color(0xFFE3E7FF),
-                                activeColor: Color(0xFFE3E7FF),
-                                value: switchWithBreak,
-                                onToggle: (bool value) {
-                                  setState(() {
-                                    switchWithBreak = value;
-                                  });
-                                },
-                              ),
-                            ),
-                            Text(
-                              'С перерывом',
-                              style: switchWithBreak
-                                  ? TextStyle(
-                                      color: Theme.of(context).primaryColor,
-                                      fontWeight: FontWeight.bold,
-                                    )
-                                  : null,
-                            ),
-                            SizedBox(width: 8),
-                            showInfoAboutBreak(context),
-                          ],
-                        ),
-                        SizedBox(height: 24),
+                        //TODO В дальнейшем надо реализовать.
 
-                        switchWithBreak
-                            ? Column(
-                                children: [
-                                  SizedBox(height: 24),
-                                  CourseDurationWidget(
-                                    title: 'Длительность перерыва',
-                                    withBreak: switchWithBreak,
-                                    onSaved: (courseBreak) {
-                                      _durationBreak = courseBreak;
-                                    },
-                                  ),
-                                ],
-                              )
-                            : Container(),
-                        SizedBox(height: 24),
+                        // Row(
+                        //   children: [
+                        //     Text(
+                        //       'Разовый прием',
+                        //       style: !switchWithBreak
+                        //           ? TextStyle(
+                        //               color: Theme.of(context).primaryColor,
+                        //               fontWeight: FontWeight.bold,
+                        //             )
+                        //           : null,
+                        //     ),
+                        //     Padding(
+                        //       padding: const EdgeInsets.only(left: 8, right: 8),
+                        //       child: FlutterSwitch(
+                        //         height: 41,
+                        //         activeToggleColor: Colors.indigoAccent,
+                        //         inactiveToggleColor: Colors.indigoAccent,
+                        //         inactiveColor: Color(0xFFE3E7FF),
+                        //         activeColor: Color(0xFFE3E7FF),
+                        //         value: switchWithBreak,
+                        //         onToggle: (bool value) {
+                        //           setState(() {
+                        //             switchWithBreak = value;
+                        //           });
+                        //         },
+                        //       ),
+                        //     ),
+                        //     Text(
+                        //       'С перерывом',
+                        //       style: switchWithBreak
+                        //           ? TextStyle(
+                        //               color: Theme.of(context).primaryColor,
+                        //               fontWeight: FontWeight.bold,
+                        //             )
+                        //           : null,
+                        //     ),
+                        //     SizedBox(width: 8),
+                        //     showInfoAboutBreak(context),
+                        //   ],
+                        // ),
+                        // SizedBox(height: 24),
+
+                        // switchWithBreak
+                        //     ? Column(
+                        //         children: [
+                        //           SizedBox(height: 24),
+                        //           CourseDurationWidget(
+                        //             title: 'Длительность перерыва',
+                        //             withBreak: switchWithBreak,
+                        //             onSaved: (courseBreak) {
+                        //               _durationBreak = courseBreak;
+                        //             },
+                        //           ),
+                        //         ],
+                        //       )
+                        //     : Container(),
+                        // SizedBox(height: 24),
                         Row(
                           children: [
                             Text(
@@ -498,7 +495,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                             border: Border.all(color: Colors.grey.shade400),
                           ),
                           child: Text(
-                            e.time.hhmm,
+                            e.hhmm,
                             style: const TextStyle(fontSize: 15),
                           ),
                         ),
