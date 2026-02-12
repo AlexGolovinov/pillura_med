@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:developer';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/notification_service.dart';
 import '../../domain/entities/intake_rec/intake_record.dart';
@@ -26,6 +29,7 @@ class FirebaseMedicationRepository implements MedicationRepository {
 
   @override
   Future<String> add(Medication medication) async {
+    final t0 = DateTime.now();
     final collection = firestore.collection(medicationsCollection);
     final docRef = collection.doc(); // создаём ID локально
 
@@ -33,7 +37,10 @@ class FirebaseMedicationRepository implements MedicationRepository {
 
     await docRef.set(medWithId.toJson());
     final records = await addIntakeRecord(medWithId);
-    await NotificationService.scheduleMedication(records, medWithId);
+    log(
+      'addIntakeRecord добавлено в репозиторий:  (затрачено: ${DateTime.now().difference(t0).inMilliseconds} ms)',
+    );
+    unawaited(NotificationService.scheduleMedication(records, medWithId));
     return docRef.id;
   }
 
@@ -143,7 +150,8 @@ class FirebaseMedicationRepository implements MedicationRepository {
           'scheduledDateTime',
           isGreaterThanOrEqualTo: startOfDay.toIso8601String(),
         )
-        .where('scheduledDateTime', isLessThan: endOfDay.toIso8601String());
+        .where('scheduledDateTime', isLessThan: endOfDay.toIso8601String())
+        .orderBy('scheduledDateTime');
 
     final snapshots = await query.get();
     return snapshots.docs

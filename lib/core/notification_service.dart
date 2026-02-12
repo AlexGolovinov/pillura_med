@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:developer';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pillura_med/presentation/providers/medication_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -10,6 +12,8 @@ import '../domain/entities/intake_rec/intake_record.dart';
 import '../domain/entities/medication.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../router/app_router.dart';
 
 final _firestore = FirebaseFirestore.instance;
 
@@ -178,6 +182,100 @@ class NotificationService {
         .update({'notificationIds': []});
   }
 
+  Future<void> foregroundNotificationHandler(
+    NotificationResponse response,
+    Ref ref,
+  ) async {
+    final d0 = DateTime.now();
+    log('📲 onDidReceiveNotificationResponse: ${response.payload}');
+    log('Action ID: ${response.actionId}');
+    log('Payload: ${response.payload}');
+    final payload = response.payload;
+    // Просто клик на уведомление — можно навигировать на общий список
+    if (navigatorKey.currentContext != null) {
+      GoRouter.of(
+        navigatorKey.currentContext!,
+      ).go('/profilePage'); // ваш роут на список лекарств
+    } else {
+      // Если context ещё не готов (редко), отложить
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (navigatorKey.currentContext != null) {
+          GoRouter.of(navigatorKey.currentContext!).go('/profilePage');
+        }
+      });
+    }
+
+    if (response.actionId == null) {
+      // Пользователь просто нажал на уведомление, без выбора действия
+      return;
+    }
+    if (payload == null) {
+      log('Payload null!');
+      return;
+    }
+
+    Map<String, dynamic>? data;
+    try {
+      data = jsonDecode(payload) as Map<String, dynamic>;
+    } catch (e) {
+      return;
+    }
+
+    final recordId = data['intakeRecordId'];
+    final record = await ref
+        .read(medicationNotifierProvider.notifier)
+        .getIntakeRecordById(recordId!);
+    log(
+      'Получена запись приёма: ${record.id} (затрачено: ${DateTime.now().difference(d0).inMilliseconds} ms)',
+    );
+    final t1 = DateTime.now();
+    ref
+        .read(medicationNotifierProvider.notifier)
+        .updateIntakeTimeFromRecord(
+          record,
+          response.actionId == 'action_take' ? true : false,
+        );
+    log(
+      'Приём помечен как ${response.actionId == 'action_take' ? "принят" : "пропущен"} (затрачено: ${DateTime.now().difference(t1).inMilliseconds} ms)',
+    );
+  }
+
+  @pragma('vm:entry-point')
+  Future<void> backgroundNotificationHandler(
+    NotificationResponse response,
+  ) async {
+    log('📲 backgroundNotificationHandler вызвана');
+    log('Action ID: ${response.actionId}');
+    log('Payload: ${response.payload}');
+
+    final payload = response.payload;
+    if (payload == null) {
+      log('Payload null!');
+      return;
+    }
+
+    Map<String, dynamic>? data;
+    try {
+      data = jsonDecode(payload) as Map<String, dynamic>;
+    } catch (e) {
+      return;
+    }
+
+    final medId = data['medId'];
+    final recordId = data['intakeRecordId'];
+
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'taken_${medId}_$recordId';
+
+    if (response.actionId == 'action_take') {
+      await prefs.setBool(key, true);
+      log('✅ Сохранено в SharedPreferences: $key = true');
+    } else if (response.actionId == 'action_skip') {
+      await prefs.setBool(key, false);
+    }
+  }
+
+  // Временная функция для тестирования мгновенных уведомлений
   static Future<void> showInstantNotification({
     required int id,
     required String title,
@@ -228,28 +326,7 @@ class NotificationService {
     );
   }
 
-  static Future<void> checkPendingNotifications() async {
-    final List<PendingNotificationRequest> pending = await notifications
-        .pendingNotificationRequests();
-
-    log('Всего запланировано уведомлений: ${pending.length}');
-
-    if (pending.isEmpty) {
-      log('Нет запланированных уведомлений');
-      return;
-    }
-
-    for (final req in pending) {
-      log('─' * 40);
-      log('ID:          ${req.id}');
-      log('Title:       ${req.title ?? "нет"}');
-      log('Body:        ${req.body ?? "нет"}');
-      log('Payload:     ${req.payload ?? "нет"}');
-      // Внимание: scheduledDateTime здесь НЕ возвращается!
-      // Время показа недоступно через этот метод
-    }
-  }
-
+  // Временная функция для тестирования запланированных уведомлений
   static Future<void> scheduleReminderNotification({
     required int id,
     required String title,
@@ -293,76 +370,24 @@ class NotificationService {
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
   }
-}
 
-Future<void> foregroundNotificationHandler(
-  NotificationResponse response,
-  Ref ref,
-) async {
-  log('📲 onDidReceiveNotificationResponse: ${response.payload}');
-  log('Action ID: ${response.actionId}');
-  log('Payload: ${response.payload}');
-  final payload = response.payload;
-  if (response.actionId == null) {
-    // Пользователь просто нажал на уведомление, без выбора действия
-    return;
-  }
-  if (payload == null) {
-    log('Payload null!');
-    return;
-  }
+  static Future<void> checkPendingNotifications() async {
+    final List<PendingNotificationRequest> pending = await notifications
+        .pendingNotificationRequests();
 
-  Map<String, dynamic>? data;
-  try {
-    data = jsonDecode(payload) as Map<String, dynamic>;
-  } catch (e) {
-    return;
-  }
+    log('Всего запланировано уведомлений: ${pending.length}');
 
-  final recordId = data['intakeRecordId'];
-  final record = await ref
-      .read(medicationNotifierProvider.notifier)
-      .getIntakeRecordById(recordId!);
+    if (pending.isEmpty) {
+      log('Нет запланированных уведомлений');
+      return;
+    }
 
-  ref
-      .read(medicationNotifierProvider.notifier)
-      .updateIntakeTimeFromRecord(
-        record,
-        response.actionId == 'action_take' ? true : false,
-      );
-}
-
-@pragma('vm:entry-point')
-Future<void> backgroundNotificationHandler(
-  NotificationResponse response,
-) async {
-  log('📲 backgroundNotificationHandler вызвана');
-  log('Action ID: ${response.actionId}');
-  log('Payload: ${response.payload}');
-
-  final payload = response.payload;
-  if (payload == null) {
-    log('Payload null!');
-    return;
-  }
-
-  Map<String, dynamic>? data;
-  try {
-    data = jsonDecode(payload) as Map<String, dynamic>;
-  } catch (e) {
-    return;
-  }
-
-  final medId = data['medId'];
-  final recordId = data['intakeRecordId'];
-
-  final prefs = await SharedPreferences.getInstance();
-  final key = 'taken_${medId}_$recordId';
-
-  if (response.actionId == 'action_take') {
-    await prefs.setBool(key, true);
-    log('✅ Сохранено в SharedPreferences: $key = true');
-  } else if (response.actionId == 'action_skip') {
-    await prefs.setBool(key, false);
+    for (final req in pending) {
+      log('─' * 40);
+      log('ID:          ${req.id}');
+      log('Title:       ${req.title ?? "нет"}');
+      log('Body:        ${req.body ?? "нет"}');
+      log('Payload:     ${req.payload ?? "нет"}');
+    }
   }
 }

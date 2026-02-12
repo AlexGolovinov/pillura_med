@@ -44,11 +44,6 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
     for (final med in meds) {
       final intakes = await _repo.getTodaysIntakes(med.id);
       if (intakes.isNotEmpty) {
-        // Сортировка intakes по времени (если не отсортировано в repo)
-        intakes.sort(
-          (a, b) => a.scheduledDateTime.compareTo(b.scheduledDateTime),
-        );
-
         todayGroups.add(MedicationWithIntakes(med, intakes));
       }
     }
@@ -133,6 +128,7 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
     required MealRelation mealRelation,
     required RepeatRule interval,
     required List<TimeOfDay> intakeTime,
+
     CourseDuration? durationTaking,
     CourseDuration? durationBreak,
     String? reason,
@@ -157,16 +153,23 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
       color: color,
       startDate: startDate,
     );
-
+    final t0 = DateTime.now();
+    log('Начало добавления лекарства: $t0');
     // 1. Сохраняем лекарство в репозитории → получаем реальный id
     final medId = await _repo.add(med);
     final medWithId = med.copyWith(id: medId);
-
+    final t1 = DateTime.now();
+    log(
+      'Лекарство добавлено в репозиторий: $t1 (затрачено: ${t1.difference(t0).inMilliseconds} ms)',
+    );
     // 2. Определяем, есть ли у этого лекарства приёмы именно на сегодня
     //    (это важно, чтобы сразу решить — попадёт ли оно в список или нет)
     //final today = DateTime.now();
     final todaysIntakes = await _repo.getTodaysIntakes(medWithId.id);
-
+    final t2 = DateTime.now();
+    log(
+      'Получены приёмы на сегодня: ${todaysIntakes.length} шт (затрачено: ${t2.difference(t1).inMilliseconds} ms)',
+    );
     // 3. Берём текущее состояние (если есть)
     final current = state.value ?? <MedicationWithIntakes>[];
 
@@ -177,7 +180,6 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
     // (на случай если кто-то из предыдущих теперь "выпал" — но обычно не нужно)
     for (final group in current) {
       // Опционально: можно здесь перезагружать todaysIntakes для каждого,
-      // но для производительности чаще просто добавляем новое и сортируем
       updatedList.add(group);
     }
 
@@ -188,9 +190,11 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
     }
 
     // 6. Сортируем весь список по ближайшему предстоящему приёму
-    final now = DateTime.now(); // более точное время, чем TimeOfDay
+    final now = DateTime.now();
     updatedList.sort((a, b) => compareMedicationGroups(a, b, now));
-
+    log(
+      'Список отсортирован (затрачено: ${DateTime.now().difference(t2).inMilliseconds} ms)',
+    );
     // 7. Устанавливаем новое состояние
     state = AsyncValue.data(updatedList);
   }
@@ -251,8 +255,6 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
   }
 
   Future<IntakeRecord> getIntakeRecordById(String id) async {
-    // Здесь нужно обратиться к репозиторию, который умеет искать по id
-    // Например:
     return await _repo.getIntakeRecordById(id);
   }
 

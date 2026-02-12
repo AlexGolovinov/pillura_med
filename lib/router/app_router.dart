@@ -10,11 +10,11 @@ import 'package:pillura_med/presentation/providers/auth_providers.dart';
 import 'package:pillura_med/router/scaffold_with_navbar.dart';
 
 // Глобальный ключ навигации — создаётся один раз
-final _navigatorKey = GlobalKey<NavigatorState>(debugLabel: 'go_router_key');
+final navigatorKey = GlobalKey<NavigatorState>(debugLabel: 'go_router_key');
 
 final goRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    navigatorKey: _navigatorKey,
+    navigatorKey: navigatorKey,
     initialLocation: '/landing',
     redirect: (context, state) {
       final authState = ref.watch(authNotifierProvider).value;
