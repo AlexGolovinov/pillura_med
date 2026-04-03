@@ -17,7 +17,6 @@ void main() async {
   TimezoneInfo? timezone = await FlutterTimezone.getLocalTimezone();
   tz.setLocalLocation(tz.getLocation(timezone.identifier));
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  //await NotificationService.init();
   runApp(const ProviderScope(child: AppRoot()));
 }
 
@@ -51,12 +50,11 @@ class _AppRootState extends ConsumerState<AppRoot> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      ref.read(notificationServiceProvider).init();
-    });
-    // Perform initial sync using the current ref
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(medicationNotifierProvider.notifier).syncTakenFromPrefs();
+    // Отложим проверку разрешений, инициализацию уведомлений и синхронизацию
+    // до первого кадра: это позволяет корректно показывать диалоги.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Await permission check so subsequent initialization waits for user's choice
+      await ref.read(notificationServiceProvider).init();
     });
 
     // Register lifecycle listener that uses the same ref

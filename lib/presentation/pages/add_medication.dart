@@ -17,14 +17,18 @@ import 'package:pillura_med/presentation/widgets/interval_widget.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
 import 'package:pillura_med/presentation/widgets/meal_relation_widget.dart';
 
+import '../../data/models/medication_data.dart';
 import '../../domain/entities/course_duration.dart';
+import '../../domain/entities/medication.dart';
 import '../../domain/entities/repeat_rule.dart';
 import '../widgets/automatic_interval_widget.dart';
 import '../widgets/course_duration_widget.dart';
 import '../widgets/manual_intake_widget.dart';
+import '../widgets/med_color_picker.dart';
 
 class AddMedicationPage extends ConsumerStatefulWidget {
-  const AddMedicationPage({super.key});
+  final MedicationData? mData;
+  const AddMedicationPage({super.key, this.mData});
 
   @override
   ConsumerState<AddMedicationPage> createState() => _AddMedicationPageState();
@@ -55,7 +59,13 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Добавить лекарство')),
+      appBar: AppBar(
+        title: Text(
+          widget.mData != null
+              ? 'Редактировать лекарство'
+              : 'Добавить лекарство',
+        ),
+      ),
       body: SafeArea(
         child: GestureDetector(
           onTap: () => FocusScope.of(context).unfocus(),
@@ -69,6 +79,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                   children: [
                     SizedBox(height: 16),
                     InputBlock(
+                      initStateTitle: widget.mData?.medication.name,
                       title: 'Название лекарства',
                       hintText: 'Введите название лекарства',
                       validator: (value) {
@@ -83,6 +94,8 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                     ),
                     SizedBox(height: 24),
                     DosageWidget(
+                      dosage: widget.mData?.medication.dosage,
+                      dosageType: widget.mData?.medication.dosageType,
                       onSavedType: (value) {
                         _dosageType = value;
                       },
@@ -92,6 +105,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                     ),
                     SizedBox(height: 24),
                     MealRelationWidget(
+                      mealRelation: widget.mData?.medication.mealRelation,
                       onSaved: (value) {
                         _mealRelation = value;
                       },
@@ -103,6 +117,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                     ),
                     SizedBox(height: 8),
                     IntervalWidget(
+                      interval: widget.mData?.medication.repeatRule,
                       onSaved: (value) {
                         _interval = value;
                       },
@@ -154,6 +169,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                     SizedBox(height: 8),
                     switchAuto == false
                         ? ManualIntakeWidget(
+                            initialTimes: widget.mData?.medication.intakeTime,
                             onSaved: (newValue) {
                               _intakeTimes = newValue!.map((e) => e).toList();
                             },
@@ -166,6 +182,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
 
                     SizedBox(height: 24),
                     CourseDurationWidget(
+                      initialDuration: widget.mData?.medication.durationTaking,
                       title: 'Длительность приема',
                       withBreak: switchWithBreak,
                       isRequired: true,
@@ -294,6 +311,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                         SizedBox(
                           height: 41,
                           child: TextFormField(
+                            initialValue: widget.mData?.medication.reason,
                             decoration: InputDecoration(
                               hintText: 'Грипп, ангина...',
                             ),
@@ -304,6 +322,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                         ),
                         SizedBox(height: 24),
                         InputBlock(
+                          initStateTitle: widget.mData?.medication.symptoms,
                           title: 'Симптомы(с чем помогает это лекарство)',
                           hintText: 'боль в горле, кашель...',
                           onSaved: (value) {
@@ -316,7 +335,14 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         SizedBox(height: 8),
-                        colorPicker(),
+                        MedicationColorPicker(
+                          initialColor: widget.mData?.medication.color,
+                          onColorSelected: (color) {
+                            setState(() {
+                              _selectedColor = color;
+                            });
+                          },
+                        ),
                         SizedBox(height: 8),
                       ],
                     ),
@@ -515,28 +541,47 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                         ),
                       ),
                       onPressed: () {
-                        ref
-                            .read(medicationNotifierProvider.notifier)
-                            .add(
-                              name: _name!,
-                              dosage: _dosage!,
-                              dosageType: _dosageType!,
-                              mealRelation: _mealRelation!,
-                              interval: _interval!,
-                              intakeTime: _intakeTimes!,
-                              startDate: _startDate,
-                              durationTaking: _durationTaking,
-                              durationBreak: _durationBreak,
-                              reason: _reason,
-                              symptoms: _symptoms,
-                              color: _selectedColor?.toARGB32(),
-                            );
+                        if (widget.mData != null) {
+                          final med = widget.mData!.medication.copyWith(
+                            name: _name!,
+                            dosage: _dosage!,
+                            dosageType: _dosageType!,
+                            mealRelation: _mealRelation!,
+                            repeatRule: _interval!,
+                            intakeTime: _intakeTimes!,
+                            durationTaking: _durationTaking,
+                            durationBreak: _durationBreak,
+                            reason: _reason,
+                            symptoms: _symptoms,
+                            color: _selectedColor?.toARGB32(),
+                          );
+                          ref
+                              .read(medicationNotifierProvider.notifier)
+                              .edit(med, widget.mData!.medication);
+                        } else {
+                          ref
+                              .read(medicationNotifierProvider.notifier)
+                              .add(
+                                name: _name!,
+                                dosage: _dosage!,
+                                dosageType: _dosageType!,
+                                mealRelation: _mealRelation!,
+                                interval: _interval!,
+                                intakeTime: _intakeTimes!,
+                                startDate: _startDate,
+                                durationTaking: _durationTaking,
+                                durationBreak: _durationBreak,
+                                reason: _reason,
+                                symptoms: _symptoms,
+                                color: _selectedColor?.toARGB32(),
+                              );
+                          //_formKey.currentState!.reset();
+                        }
                         context.pop();
                         context.go('/profilePage');
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Сохранено ✅')),
                         );
-                        //_formKey.currentState!.reset();
                       },
                       child: Text(
                         'Все верно',
@@ -598,6 +643,11 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
       Colors.blueGrey,
     ];
 
+    if (widget.mData?.medication.color != null) {
+      selectedPicker = colors.indexWhere(
+        (c) => c.toARGB32() == widget.mData!.medication.color!,
+      );
+    }
     return SizedBox(
       height: 41,
       width: double.infinity,

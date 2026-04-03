@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pillura_med/data/models/medication_data.dart';
 import 'package:pillura_med/presentation/pages/add_medication.dart';
 import 'package:pillura_med/presentation/pages/landing.dart';
 import 'package:pillura_med/presentation/pages/medication_page.dart';
@@ -60,7 +61,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/addMedication',
                 name: 'AddMedication',
-                builder: (context, state) => AddMedicationPage(),
+                builder: (context, state) {
+                  final extra = state.extra as MedicationData?;
+                  return AddMedicationPage(mData: extra);
+                },
               ),
             ],
           ),
@@ -108,7 +112,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           // ),
         ],
       ),
-
       GoRoute(
         path: '/landing',
         name: 'Landing',

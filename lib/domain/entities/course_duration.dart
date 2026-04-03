@@ -1,10 +1,11 @@
+import 'package:equatable/equatable.dart';
 import 'package:pillura_med/domain/enums/course_duration_unit.dart';
 
-class CourseDuration {
+class CourseDuration extends Equatable {
   final int count;
   final CourseDurationUnit unit;
 
-  CourseDuration({required this.count, required this.unit});
+  const CourseDuration({required this.count, required this.unit});
 
   factory CourseDuration.fromJson(Map<String, dynamic> json) {
     return CourseDuration(
@@ -16,4 +17,7 @@ class CourseDuration {
   Map<String, dynamic> toJson() {
     return {'count': count, 'unit': unit.name};
   }
+
+  @override
+  List<Object?> get props => [count, unit];
 }

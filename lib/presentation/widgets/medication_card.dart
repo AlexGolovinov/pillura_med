@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:go_router/go_router.dart';
 import 'package:pillura_med/core/extension/theme_extension.dart';
+import 'package:pillura_med/data/models/medication_data.dart';
+import 'package:pillura_med/domain/entities/medication.dart';
 
 import '../../domain/entities/intake_rec/intake_record.dart';
 
 class MedicationCard extends StatelessWidget {
+  final Medication medication;
   final String title;
   final String dosage;
   final String dosageType;
@@ -17,6 +21,7 @@ class MedicationCard extends StatelessWidget {
   final Function(IntakeRecord) onSkip;
   const MedicationCard({
     super.key,
+    required this.medication,
     required this.title,
     required this.dosage,
     required this.dosageType,
@@ -31,6 +36,11 @@ class MedicationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    editMedication() {
+      final mData = MedicationData(isEdit: true, medication: medication);
+      context.push('/addMedication', extra: mData);
+    }
+
     deleteMedicationDialog() {
       showDialog(
         context: context,
@@ -109,7 +119,9 @@ class MedicationCard extends StatelessWidget {
                     ),
                   ),
                   GestureDetector(
-                    onTap: () {},
+                    onTap: () {
+                      editMedication();
+                    },
                     child: Container(
                       decoration: BoxDecoration(
                         color: Colors.grey[200], //const Color(0xFFF4F4F4),

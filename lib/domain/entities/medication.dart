@@ -100,9 +100,7 @@ class Medication {
         ),
         //intervalDays: json['repeatRule']['intervalDays'] as int?,
         weekdays: (json['repeatRule']['weekdays'] as List<dynamic>?)
-            ?.map(
-              (day) => Weekday.values.firstWhere((e) => e.shortLabel == day),
-            )
+            ?.map((day) => Weekday.values.firstWhere((e) => e.name == day))
             .toList(),
       ),
       symptoms: json['symptoms'] as String?,

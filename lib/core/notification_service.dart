@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/presentation/providers/medication_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -13,6 +14,7 @@ import '../domain/entities/medication.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../presentation/providers/notification_provider.dart';
 import '../router/app_router.dart';
 
 final _firestore = FirebaseFirestore.instance;
@@ -39,23 +41,61 @@ Future<int> getNextNotificationId() async {
   });
 }
 
+@pragma('vm:entry-point')
+Future<void> notificationBackgroundHandler(
+  NotificationResponse response,
+) async {
+  log('📲 notificationBackgroundHandler called');
+  log('Action ID: ${response.actionId}');
+  log('Payload: ${response.payload}');
+
+  final payload = response.payload;
+  if (payload == null) {
+    log('Payload null!');
+    return;
+  }
+
+  Map<String, dynamic>? data;
+  try {
+    data = jsonDecode(payload) as Map<String, dynamic>;
+  } catch (e) {
+    log('Failed to decode payload: $e');
+    return;
+  }
+
+  final medId = data['medId'];
+  final recordId = data['intakeRecordId'];
+
+  final prefs = await SharedPreferences.getInstance();
+  final key = 'taken_${medId}_$recordId';
+
+  if (response.actionId == 'action_take') {
+    await prefs.setBool(key, true);
+    log('✅ Saved to SharedPreferences: $key = true');
+  } else if (response.actionId == 'action_skip') {
+    await prefs.setBool(key, false);
+  }
+}
+
 final FlutterLocalNotificationsPlugin notifications =
     FlutterLocalNotificationsPlugin();
 
 // Resolve platform-specific implementation on demand (after initialization)
-AndroidFlutterLocalNotificationsPlugin? get _androidImplementation =>
-    notifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
 
 final notificationServiceProvider = Provider<NotificationService>((ref) {
-  return NotificationService(ref: ref);
+  final plugin = ref.read(flutterLocalNotificationsProvider);
+  return NotificationService(ref: ref, plugin: plugin);
 });
 
 class NotificationService {
+  final FlutterLocalNotificationsPlugin plugin;
   final Ref ref;
-  NotificationService({required this.ref});
+  NotificationService({required this.ref, required this.plugin});
+
+  AndroidFlutterLocalNotificationsPlugin? get _androidImplementation => plugin
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >();
 
   /// Инициализация (один раз в main)
   Future<void> init() async {
@@ -68,7 +108,7 @@ class NotificationService {
       const InitializationSettings(android: androidSettings, iOS: iosSettings),
       onDidReceiveNotificationResponse: (response) =>
           foregroundNotificationHandler(response, ref),
-      onDidReceiveBackgroundNotificationResponse: backgroundNotificationHandler,
+      onDidReceiveBackgroundNotificationResponse: notificationBackgroundHandler,
     );
 
     // Create Android channels
@@ -105,19 +145,10 @@ class NotificationService {
     List<IntakeRecord> records,
     Medication med,
   ) async {
-    final bool? grantedNotificationPermission = await _androidImplementation
-        ?.requestNotificationsPermission();
-    final bool? grantedAlarmPermission = await _androidImplementation
-        ?.requestExactAlarmsPermission();
-
-    log('Разрешение на уведомления: $grantedNotificationPermission');
-    log('Разрешение на точные будильники: $grantedAlarmPermission');
     if (med.finishedAt) return;
 
-    //final dates = _buildRollingSchedule(med, DateTime.now(), _planDaysAhead);
     final notificationIds = <int>[];
     try {
-      // final dates = records.map((r) => r.scheduledDateTime).toList();
       for (final rec in records) {
         final date = rec.scheduledDateTime;
         if (date.isBefore(DateTime.now())) continue;
@@ -131,8 +162,8 @@ class NotificationService {
         final notificationId = await getNextNotificationId();
         await notifications.zonedSchedule(
           notificationId,
+          '${med.name} - ${med.dosage} ${med.dosageType.shortLabel}',
           'Время принимать лекарство',
-          med.name,
           scheduledDate,
           const NotificationDetails(
             android: AndroidNotificationDetails(
@@ -240,40 +271,7 @@ class NotificationService {
     );
   }
 
-  @pragma('vm:entry-point')
-  Future<void> backgroundNotificationHandler(
-    NotificationResponse response,
-  ) async {
-    log('📲 backgroundNotificationHandler вызвана');
-    log('Action ID: ${response.actionId}');
-    log('Payload: ${response.payload}');
-
-    final payload = response.payload;
-    if (payload == null) {
-      log('Payload null!');
-      return;
-    }
-
-    Map<String, dynamic>? data;
-    try {
-      data = jsonDecode(payload) as Map<String, dynamic>;
-    } catch (e) {
-      return;
-    }
-
-    final medId = data['medId'];
-    final recordId = data['intakeRecordId'];
-
-    final prefs = await SharedPreferences.getInstance();
-    final key = 'taken_${medId}_$recordId';
-
-    if (response.actionId == 'action_take') {
-      await prefs.setBool(key, true);
-      log('✅ Сохранено в SharedPreferences: $key = true');
-    } else if (response.actionId == 'action_skip') {
-      await prefs.setBool(key, false);
-    }
-  }
+  // removed instance background handler — use top-level handler below
 
   // Временная функция для тестирования мгновенных уведомлений
   static Future<void> showInstantNotification({

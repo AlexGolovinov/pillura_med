@@ -5,15 +5,41 @@ import 'custom_card.dart';
 import 'input_block.dart';
 
 class DosageWidget extends StatefulWidget {
+  final double? dosage;
+  final DosageType? dosageType;
   final void Function(DosageType?)? onSavedType;
   final void Function(double?)? onSavedDosage;
-  const DosageWidget({super.key, this.onSavedType, this.onSavedDosage});
+  const DosageWidget({
+    super.key,
+    this.onSavedType,
+    this.onSavedDosage,
+    this.dosage,
+    this.dosageType,
+  });
 
   @override
   State<DosageWidget> createState() => _DosageWidgetState();
 }
 
 class _DosageWidgetState extends State<DosageWidget> {
+  late TextEditingController _dosageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _dosageController = TextEditingController(text: widget.dosage?.toString());
+    if (widget.dosageType != null &&
+        !_baseDosageType.contains(widget.dosageType)) {
+      _extraDosageType = widget.dosageType;
+    }
+  }
+
+  @override
+  void dispose() {
+    _dosageController.dispose();
+    super.dispose();
+  }
+
   final List<DosageType> _baseDosageType = [DosageType.ml, DosageType.pill];
   DosageType? _extraDosageType; // выбранное из "другое"
   @override
@@ -22,7 +48,7 @@ class _DosageWidgetState extends State<DosageWidget> {
         .where((e) => !_baseDosageType.contains(e) && _extraDosageType != e)
         .toList();
     return FormField<DosageType>(
-      initialValue: null,
+      initialValue: widget.dosageType,
       autovalidateMode: AutovalidateMode.onUserInteraction,
       onSaved: widget.onSavedType,
       onReset: () {
@@ -39,6 +65,7 @@ class _DosageWidgetState extends State<DosageWidget> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             InputBlock(
+              initStateTitle: widget.dosage?.toString(),
               title: 'Сколько принять',
               hintText: 'Введите количество',
               keyboardType: TextInputType.number,

@@ -4,7 +4,7 @@ class InputBlock extends StatelessWidget {
   final String title;
   final String hintText;
   final TextInputType? keyboardType;
-  final TextEditingController? controller;
+  final String? initStateTitle;
   final String? Function(String?)? validator;
   final void Function(String?)? onSaved;
 
@@ -13,7 +13,7 @@ class InputBlock extends StatelessWidget {
     required this.title,
     required this.hintText,
     this.keyboardType,
-    this.controller,
+    this.initStateTitle,
     this.validator,
     this.onSaved,
   });
@@ -26,7 +26,7 @@ class InputBlock extends StatelessWidget {
         Text(title, style: Theme.of(context).textTheme.titleMedium),
         SizedBox(height: 8),
         TextFormField(
-          controller: controller,
+          initialValue: initStateTitle,
           decoration: InputDecoration(
             hintText: hintText,
             errorStyle: TextStyle(fontSize: 13),

@@ -6,8 +6,9 @@ import '../../domain/enums/weekday.dart';
 import 'custom_card.dart';
 
 class IntervalWidget extends StatefulWidget {
+  final RepeatRule? interval;
   final void Function(RepeatRule?)? onSaved;
-  const IntervalWidget({super.key, this.onSaved});
+  const IntervalWidget({super.key, this.interval, this.onSaved});
 
   @override
   State<IntervalWidget> createState() => _IntervalWidgetState();
@@ -16,9 +17,22 @@ class IntervalWidget extends StatefulWidget {
 class _IntervalWidgetState extends State<IntervalWidget> {
   final Set<int> _days = {}; // выбранные дни недели
   String _dropdownKey = '1';
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.interval != null) {
+      if (widget.interval!.type == RepeatRuleType.weekly &&
+          widget.interval!.weekdays != null) {
+        _days.addAll(widget.interval!.weekdays!.map((e) => e.index));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return FormField<RepeatRule?>(
+      initialValue: widget.interval,
       validator: (value) {
         if (value == null) {
           return 'Выберите интервал приема лекарства';

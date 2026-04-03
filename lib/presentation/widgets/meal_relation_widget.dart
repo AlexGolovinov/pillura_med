@@ -4,8 +4,9 @@ import '../../domain/enums/meal_relation.dart';
 import 'custom_card.dart';
 
 class MealRelationWidget extends StatefulWidget {
+  final MealRelation? mealRelation;
   final void Function(MealRelation?)? onSaved;
-  const MealRelationWidget({super.key, this.onSaved});
+  const MealRelationWidget({super.key, this.mealRelation, this.onSaved});
 
   @override
   State<MealRelationWidget> createState() => _MealRelationWidgetState();
@@ -16,6 +17,7 @@ class _MealRelationWidgetState extends State<MealRelationWidget> {
   @override
   Widget build(BuildContext context) {
     return FormField<MealRelation?>(
+      initialValue: widget.mealRelation,
       autovalidateMode: AutovalidateMode.onUserInteraction,
       validator: (value) {
         if (value == null) {

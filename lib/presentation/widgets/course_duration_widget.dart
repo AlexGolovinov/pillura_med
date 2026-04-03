@@ -5,11 +5,13 @@ import '../../domain/enums/course_duration_unit.dart';
 import 'custom_card.dart';
 
 class CourseDurationWidget extends StatefulWidget {
+  final CourseDuration? initialDuration;
   final String title;
   final bool withBreak;
   final void Function(CourseDuration?)? onSaved;
   final bool isRequired;
   const CourseDurationWidget({
+    this.initialDuration,
     super.key,
     required this.title,
     this.onSaved,
@@ -27,6 +29,15 @@ class _CourseDurationWidgetState extends State<CourseDurationWidget> {
   final TextEditingController _controller = TextEditingController();
 
   @override
+  initState() {
+    super.initState();
+    if (widget.initialDuration != null) {
+      _selectedCourseDuration = widget.initialDuration!.unit;
+      _controller.text = widget.initialDuration!.count.toString();
+    }
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
@@ -35,6 +46,7 @@ class _CourseDurationWidgetState extends State<CourseDurationWidget> {
   @override
   Widget build(BuildContext context) {
     return FormField<CourseDuration?>(
+      initialValue: widget.initialDuration,
       onSaved: widget.onSaved,
       validator: (value) {
         if (widget.isRequired && value == null) {

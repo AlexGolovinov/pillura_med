@@ -77,6 +77,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           key: ValueKey(item.medication.id),
                           padding: const EdgeInsets.only(bottom: 12.0),
                           child: MedicationCard(
+                            medication: item.medication,
                             title: item.medication.name,
                             dosage: item.medication.dosage.toString(),
                             dosageType: item.medication.dosageType.shortLabel,
@@ -119,6 +120,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         child: FadeTransition(
                           opacity: animation,
                           child: MedicationCard(
+                            medication: oldItem.medication,
                             title: oldItem.medication.name,
                             dosage: oldItem.medication.dosage.toString(),
                             dosageType:

@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
         android:label="pillura_med"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

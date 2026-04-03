@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pillura_med/presentation/providers/repository_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../data/models/medication_data.dart';
 import '../../domain/entities/course_duration.dart';
 import '../../domain/entities/intake_rec/intake_record.dart';
 import '../../domain/entities/medication.dart';
@@ -50,75 +51,7 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
     final now = DateTime.now();
     todayGroups.sort((a, b) => compareMedicationGroups(a, b, now));
 
-    // // Сортировка по ближайшему предстоящему приему
-    // final now = TimeOfDay.now();
-    // meds.sort((a, b) => compareMedications(a, b, now));
-
-    // if (meds.isNotEmpty) {
-    //   await NotificationService.scheduleMedication(meds.first);
-    // }
-
     return todayGroups;
-  }
-
-  int compareMedicationGroups(
-    MedicationWithIntakes a,
-    MedicationWithIntakes b,
-    DateTime now,
-  ) {
-    int getGroupPriority(MedicationWithIntakes group) {
-      final hasNotTaken = group.todaysIntakes.any((i) => i.isTaken == null);
-
-      if (hasNotTaken) return 0;
-
-      final hasFuture = group.todaysIntakes.any(
-        (i) => i.scheduledDateTime.isAfter(now),
-      );
-
-      if (hasFuture) return 1;
-
-      return 2;
-    }
-
-    DateTime getReferenceTime(MedicationWithIntakes group) {
-      // ближайшее неотмеченное
-      final notTaken =
-          group.todaysIntakes.where((i) => i.isTaken == null).toList()..sort(
-            (a, b) => a.scheduledDateTime.compareTo(b.scheduledDateTime),
-          );
-
-      if (notTaken.isNotEmpty) {
-        return notTaken.first.scheduledDateTime;
-      }
-
-      // ближайшее будущее
-      final future =
-          group.todaysIntakes
-              .where((i) => i.scheduledDateTime.isAfter(now))
-              .toList()
-            ..sort(
-              (a, b) => a.scheduledDateTime.compareTo(b.scheduledDateTime),
-            );
-
-      if (future.isNotEmpty) {
-        return future.first.scheduledDateTime;
-      }
-
-      // иначе последнее по времени
-      return group.todaysIntakes.last.scheduledDateTime;
-    }
-
-    final priorityA = getGroupPriority(a);
-    final priorityB = getGroupPriority(b);
-
-    if (priorityA != priorityB) {
-      return priorityA.compareTo(priorityB);
-    }
-
-    final timeA = getReferenceTime(a);
-    final timeB = getReferenceTime(b);
-
-    return timeA.compareTo(timeB);
   }
 
   Future<void> add({
@@ -199,21 +132,26 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
     state = AsyncValue.data(updatedList);
   }
 
+  Future<void> edit(Medication med, Medication medOld) async {
+    await _repo.edit(med, medOld);
+
+    final current = state.value ?? [];
+    final updatedList = current.map((group) {
+      if (group.medication.id == med.id) {
+        return group.copyWith(medication: med);
+      }
+      return group;
+    }).toList();
+
+    state = AsyncValue.data(updatedList);
+  }
+
   Future<void> deleteMedication(String id) async {
     state = AsyncValue.data(
       (state.value ?? []).where((m) => m.medication.id != id).toList(),
     );
     await _repo.cancelNotificationsForMedication(id);
     await _repo.delete(id);
-  }
-
-  Future<void> updateIntakeTime(
-    String id,
-    IntakeRecord intakeRecord,
-    bool isTaken,
-  ) async {
-    // Just update the repository, the state is managed by intakeRecords
-    await _repo.updateIntakeTime(intakeRecord, isTaken);
   }
 
   Future<void> updateIntakeTimeFromRecord(
@@ -247,8 +185,6 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
       }).toList();
       updatedList.sort((a, b) => compareMedicationGroups(a, b, DateTime.now()));
       state = AsyncValue.data(updatedList);
-      // // Notify the state after sorting to trigger UI updates
-      // notifyListChanged();
     } catch (e) {
       log('Error updating intake time from record: $e');
     }
@@ -287,12 +223,68 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
     } catch (e) {
       log('Error syncing taken status from prefs: $e');
     }
-    // Update the repository with the taken status from SharedPreferences
   }
 
   void notifyListChanged() {
     state = AsyncValue.data(state.value ?? []);
   }
+}
+
+int compareMedicationGroups(
+  MedicationWithIntakes a,
+  MedicationWithIntakes b,
+  DateTime now,
+) {
+  int getGroupPriority(MedicationWithIntakes group) {
+    final hasNotTaken = group.todaysIntakes.any((i) => i.isTaken == null);
+
+    if (hasNotTaken) return 0;
+
+    final hasFuture = group.todaysIntakes.any(
+      (i) => i.scheduledDateTime.isAfter(now),
+    );
+
+    if (hasFuture) return 1;
+
+    return 2;
+  }
+
+  DateTime getReferenceTime(MedicationWithIntakes group) {
+    // ближайшее неотмеченное
+    final notTaken =
+        group.todaysIntakes.where((i) => i.isTaken == null).toList()
+          ..sort((a, b) => a.scheduledDateTime.compareTo(b.scheduledDateTime));
+
+    if (notTaken.isNotEmpty) {
+      return notTaken.first.scheduledDateTime;
+    }
+
+    // ближайшее будущее
+    final future =
+        group.todaysIntakes
+            .where((i) => i.scheduledDateTime.isAfter(now))
+            .toList()
+          ..sort((a, b) => a.scheduledDateTime.compareTo(b.scheduledDateTime));
+
+    if (future.isNotEmpty) {
+      return future.first.scheduledDateTime;
+    }
+
+    // иначе последнее по времени
+    return group.todaysIntakes.last.scheduledDateTime;
+  }
+
+  final priorityA = getGroupPriority(a);
+  final priorityB = getGroupPriority(b);
+
+  if (priorityA != priorityB) {
+    return priorityA.compareTo(priorityB);
+  }
+
+  final timeA = getReferenceTime(a);
+  final timeB = getReferenceTime(b);
+
+  return timeA.compareTo(timeB);
 }
 
 int compareMedications(Medication a, Medication b, TimeOfDay now) {

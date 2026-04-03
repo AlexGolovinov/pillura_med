@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../../core/notification_service.dart';
 import '../../domain/entities/intake_rec/intake_record.dart';
 import '../../domain/entities/medication.dart';
@@ -22,6 +23,7 @@ class FirebaseMedicationRepository implements MedicationRepository {
     final snapshot = await firestore
         .collection(medicationsCollection)
         .where('userId', isEqualTo: userId)
+        .where('repeatRule.type')
         .get();
 
     return snapshot.docs.map((doc) => Medication.fromJson(doc.data())).toList();
@@ -42,6 +44,23 @@ class FirebaseMedicationRepository implements MedicationRepository {
     );
     unawaited(NotificationService.scheduleMedication(records, medWithId));
     return docRef.id;
+  }
+
+  @override
+  Future<void> edit(Medication medication, Medication oldMedication) async {
+    await firestore
+        .collection(medicationsCollection)
+        .doc(medication.id)
+        .update(medication.toJson());
+    if (listEquals(medication.intakeTime, oldMedication.intakeTime) &&
+        medication.repeatRule == oldMedication.repeatRule &&
+        medication.durationTaking == oldMedication.durationTaking) {
+      log(
+        'Интервалы приёма не изменились, пропускаем обновление расписания уведомлений',
+      );
+    } else {
+      log(' Интервалы приёма изменились, обновляем расписание уведомлений');
+    }
   }
 
   @override
@@ -84,11 +103,7 @@ class FirebaseMedicationRepository implements MedicationRepository {
 
   @override
   Future<void> updateIntakeTime(IntakeRecord intakeRecord, bool isTaken) async {
-    // Найти IntakeRecord, который соответствует: medicationId + сегодняшняя дата + intakeTime
-    // final today = DateTime.now();
     final targetDateTime = intakeRecord.scheduledDateTime;
-
-    // Ищем IntakeRecord в диапазоне времени (±1 час для безопасности)
     final query = await firestore
         .collection(intakeRecordsCollection)
         .where('medicationId', isEqualTo: intakeRecord.medicationId)

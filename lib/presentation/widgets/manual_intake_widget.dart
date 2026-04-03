@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'custom_card.dart';
 
 class ManualIntakeWidget extends StatefulWidget {
+  final List<TimeOfDay>? initialTimes;
   final FormFieldSetter<List<TimeOfDay>>? onSaved;
-  const ManualIntakeWidget({super.key, this.onSaved});
+  const ManualIntakeWidget({super.key, this.initialTimes, this.onSaved});
 
   @override
   State<ManualIntakeWidget> createState() => _ManualIntakeWidgetState();
@@ -37,7 +39,7 @@ class _ManualIntakeWidgetState extends State<ManualIntakeWidget> {
     if (time != null) {
       final times = List<TimeOfDay>.from(state.value ?? []);
 
-      // Проверка минимальной разницы в 5 минут
+      //TODO Проверка минимальной разницы в 5 минут, сейчас стоит 1 для тестов
       final isTooClose = times.any((t) {
         final diff = _timeDifferenceInMinutes(t, time);
         return diff.abs() < 1;
@@ -96,8 +98,8 @@ class _ManualIntakeWidgetState extends State<ManualIntakeWidget> {
   @override
   Widget build(BuildContext context) {
     return FormField<List<TimeOfDay>>(
+      initialValue: widget.initialTimes,
       onSaved: widget.onSaved,
-      initialValue: [],
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Выберите время приема лекарства';
@@ -122,11 +124,11 @@ class _ManualIntakeWidgetState extends State<ManualIntakeWidget> {
                         content: Text('Вы уверены, что хотите удалить $t?'),
                         actions: [
                           TextButton(
-                            onPressed: () => Navigator.pop(context, false),
+                            onPressed: () => context.pop(false),
                             child: const Text('Отмена'),
                           ),
                           TextButton(
-                            onPressed: () => Navigator.pop(context, true),
+                            onPressed: () => context.pop(true),
                             child: const Text('Удалить'),
                           ),
                         ],
