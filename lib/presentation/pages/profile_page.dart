@@ -22,7 +22,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Widget build(BuildContext context) {
     final medication = ref.watch(medicationNotifierProvider);
     return Scaffold(
-      appBar: AppBar(title: Text('Профили'), centerTitle: false),
+      appBar: AppBar(
+        title: const Text('Профиль'),
+        centerTitle: false,
+        actions: [
+          TextButton.icon(
+            onPressed: () => context.push('/welcomePage'),
+            icon: const Icon(Icons.person_2),
+            label: const Text('Me'),
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.only(left: 8),
         child: Column(

@@ -1,0 +1,38 @@
+---
+description: Flutter conventions for Riverpod 3 and clean architecture layers
+alwaysApply: true
+---
+
+# Riverpod 3 + Clean Architecture
+
+This project uses three layers: `data`, `domain`, `presentation`.
+
+## Layer boundaries
+
+- Keep entities, enums, and repository contracts in `lib/domain`.
+- Keep Firebase and other external implementations in `lib/data`.
+- Keep widgets, pages, and providers in `lib/presentation`.
+- `presentation` may depend on `domain` contracts and `presentation/providers`.
+- `data` may depend on `domain`, but `domain` must not depend on `data` or `presentation`.
+- Do not add a new architectural layer (for example `usecases`) unless explicitly requested.
+
+## Riverpod 3 conventions
+
+- Use `ProviderScope` at app root.
+- Prefer `AsyncNotifier` + `AsyncNotifierProvider` for async feature state.
+- Keep repository injection inside providers, reading domain repository interfaces.
+- Keep provider names explicit and feature-scoped (`<feature>NotifierProvider`, `<feature>RepositoryProvider`).
+- Handle loading and errors with `AsyncValue` states instead of ad-hoc booleans.
+
+## Import direction examples
+
+```dart
+// GOOD: presentation -> domain
+import '../../domain/repositories/medication_repository.dart';
+
+// GOOD: data -> domain
+import '../../domain/entities/medication.dart';
+
+// BAD: domain -> data
+import '../../data/repositories/firebase_medication_repository.dart';
+```

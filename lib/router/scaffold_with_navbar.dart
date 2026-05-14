@@ -43,6 +43,7 @@ class _ScaffoldWithNavBarState extends State<ScaffoldWithNavBar> {
               isSelected: widget.navigationShell.currentIndex == 2,
               onTap: () => _onTap(context, 2),
             ),
+            
           ],
         ),
       ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pillura_med/data/models/medication_data.dart';
 import 'package:pillura_med/presentation/pages/add_medication.dart';
+import 'package:pillura_med/presentation/pages/add_menu_page.dart';
 import 'package:pillura_med/presentation/pages/landing.dart';
 import 'package:pillura_med/presentation/pages/medication_page.dart';
 import 'package:pillura_med/presentation/pages/profile_page.dart';
@@ -38,6 +39,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/welcomePage',
+        name: 'WelcomePage',
+        builder: (context, state) => const WelcomePage(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) =>
             ScaffoldWithNavBar(navigationShell: shell),
@@ -71,9 +77,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/welcomePage',
-                name: 'WelcomePage',
-                builder: (context, state) => const WelcomePage(),
+                path: '/add',
+                name: 'AddMenu',
+                builder: (context, state) => const AddMenuPage(),
+                routes: [
+                  GoRoute(
+                    path: 'medication',
+                    name: 'AddMedicationFromAddHub',
+                    builder: (context, state) {
+                      final extra = state.extra as MedicationData?;
+                      return AddMedicationPage(mData: extra);
+                    },
+                  ),
+                ],
               ),
             ],
           ),
