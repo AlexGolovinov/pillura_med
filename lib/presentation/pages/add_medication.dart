@@ -8,10 +8,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:pillura_med/core/extension/theme_extension.dart';
 import 'package:pillura_med/core/extension/time_of_day_extension.dart';
+import 'package:pillura_med/data/models/add_medication_route_data.dart';
 import 'package:pillura_med/domain/enums/course_duration_unit.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/domain/enums/meal_relation.dart';
 import 'package:pillura_med/presentation/providers/medication_provider.dart';
+import 'package:pillura_med/presentation/providers/repository_provider.dart';
 import 'package:pillura_med/presentation/widgets/dosage_widget.dart';
 import 'package:pillura_med/presentation/widgets/interval_widget.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
@@ -27,8 +29,15 @@ import '../widgets/manual_intake_widget.dart';
 import '../widgets/med_color_picker.dart';
 
 class AddMedicationPage extends ConsumerStatefulWidget {
-  final MedicationData? mData;
-  const AddMedicationPage({super.key, this.mData});
+  final AddMedicationRouteData routeData;
+  const AddMedicationPage({super.key, AddMedicationRouteData? routeData})
+    : routeData = routeData ?? const AddMedicationRouteData();
+
+  MedicationData? get mData => routeData.medicationData;
+  String? get targetUserId => routeData.targetUserId;
+  String? get targetUserName => routeData.targetUserName;
+  bool get canEdit => routeData.canEdit;
+  bool get isOwnProfile => routeData.isOwnProfile;
 
   @override
   ConsumerState<AddMedicationPage> createState() => _AddMedicationPageState();
@@ -78,6 +87,21 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SizedBox(height: 16),
+                    if (!widget.isOwnProfile)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color.fromARGB(255, 232, 235, 251),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFF202D85)),
+                        ),
+                        child: Text(
+                          'Лекарство будет добавлено для профиля ${widget.targetUserName ?? ''}',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
                     InputBlock(
                       initStateTitle: widget.mData?.medication.name,
                       title: 'Название лекарства',
@@ -357,9 +381,11 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      onPressed: () {
+                      onPressed: widget.canEdit
+                          ? () {
                         _addMedicine();
-                      },
+                            }
+                          : null,
                       child: Text(
                         'Добавить',
                         style: Theme.of(
@@ -540,43 +566,9 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      onPressed: () {
-                        if (widget.mData != null) {
-                          final med = widget.mData!.medication.copyWith(
-                            name: _name!,
-                            dosage: _dosage!,
-                            dosageType: _dosageType!,
-                            mealRelation: _mealRelation!,
-                            repeatRule: _interval!,
-                            intakeTime: _intakeTimes!,
-                            durationTaking: _durationTaking,
-                            durationBreak: _durationBreak,
-                            reason: _reason,
-                            symptoms: _symptoms,
-                            color: _selectedColor?.toARGB32(),
-                          );
-                          ref
-                              .read(medicationNotifierProvider.notifier)
-                              .edit(med, widget.mData!.medication);
-                        } else {
-                          ref
-                              .read(medicationNotifierProvider.notifier)
-                              .add(
-                                name: _name!,
-                                dosage: _dosage!,
-                                dosageType: _dosageType!,
-                                mealRelation: _mealRelation!,
-                                interval: _interval!,
-                                intakeTime: _intakeTimes!,
-                                startDate: _startDate,
-                                durationTaking: _durationTaking,
-                                durationBreak: _durationBreak,
-                                reason: _reason,
-                                symptoms: _symptoms,
-                                color: _selectedColor?.toARGB32(),
-                              );
-                          //_formKey.currentState!.reset();
-                        }
+                      onPressed: () async {
+                        await _saveMedicationForSelectedProfile();
+                        if (!mounted) return;
                         context.pop();
                         context.go('/profilePage');
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -612,6 +604,78 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
         ),
       );
     }
+  }
+
+  Future<void> _saveMedicationForSelectedProfile() async {
+    final targetUserId = widget.targetUserId;
+
+    if (widget.mData != null) {
+      final med = widget.mData!.medication.copyWith(
+        name: _name!,
+        dosage: _dosage!,
+        dosageType: _dosageType!,
+        mealRelation: _mealRelation!,
+        repeatRule: _interval!,
+        intakeTime: _intakeTimes!,
+        durationTaking: _durationTaking,
+        durationBreak: _durationBreak,
+        reason: _reason,
+        symptoms: _symptoms,
+        color: _selectedColor?.toARGB32(),
+      );
+
+      if (targetUserId == null) {
+        await ref
+            .read(medicationNotifierProvider.notifier)
+            .edit(med, widget.mData!.medication);
+      } else {
+        final repo = ref.read(medicationRepositoryByUserIdProvider(targetUserId));
+        await repo.edit(med, widget.mData!.medication);
+        ref.invalidate(medicationByUserProvider(targetUserId));
+      }
+      return;
+    }
+
+    if (targetUserId == null) {
+      await ref
+          .read(medicationNotifierProvider.notifier)
+          .add(
+            name: _name!,
+            dosage: _dosage!,
+            dosageType: _dosageType!,
+            mealRelation: _mealRelation!,
+            interval: _interval!,
+            intakeTime: _intakeTimes!,
+            startDate: _startDate,
+            durationTaking: _durationTaking,
+            durationBreak: _durationBreak,
+            reason: _reason,
+            symptoms: _symptoms,
+            color: _selectedColor?.toARGB32(),
+          );
+      return;
+    }
+
+    final repo = ref.read(medicationRepositoryByUserIdProvider(targetUserId));
+    final med = Medication(
+      id: '',
+      userId: '',
+      name: _name!,
+      dosage: _dosage!,
+      dosageType: _dosageType!,
+      mealRelation: _mealRelation!,
+      repeatRule: _interval!,
+      intakeTime: _intakeTimes!,
+      durationTaking: _durationTaking,
+      withBreak: _durationBreak != null,
+      durationBreak: _durationBreak,
+      reason: _reason,
+      symptoms: _symptoms,
+      color: _selectedColor?.toARGB32(),
+      startDate: _startDate,
+    );
+    await repo.add(med);
+    ref.invalidate(medicationByUserProvider(targetUserId));
   }
 
   Widget colorPicker() {

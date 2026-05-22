@@ -52,9 +52,16 @@ class _ScaffoldWithNavBarState extends State<ScaffoldWithNavBar> {
 
   // ignore: unused_element
   void _onTap(BuildContext context, int index) {
+    if (index == 2) {
+      context.go('/add');
+      return;
+    }
+
+    final shouldOpenInitialLocation =
+        index == widget.navigationShell.currentIndex;
     widget.navigationShell.goBranch(
       index,
-      initialLocation: index == widget.navigationShell.currentIndex,
+      initialLocation: shouldOpenInitialLocation,
     );
   }
 }

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pillura_med/presentation/providers/repository_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../data/models/medication_data.dart';
 import '../../domain/entities/course_duration.dart';
 import '../../domain/entities/intake_rec/intake_record.dart';
 import '../../domain/entities/medication.dart';
@@ -38,20 +37,7 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
     _repo = ref.read(
       medicationFRepositoryProvider,
     ); // <- берём репозиторий через провайдер
-    final meds = await _repo.getAll();
-
-    final todayGroups = <MedicationWithIntakes>[];
-
-    for (final med in meds) {
-      final intakes = await _repo.getTodaysIntakes(med.id);
-      if (intakes.isNotEmpty) {
-        todayGroups.add(MedicationWithIntakes(med, intakes));
-      }
-    }
-    final now = DateTime.now();
-    todayGroups.sort((a, b) => compareMedicationGroups(a, b, now));
-
-    return todayGroups;
+    return _loadMedicationWithIntakes(_repo);
   }
 
   Future<void> add({
@@ -230,6 +216,26 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
   }
 }
 
+Future<List<MedicationWithIntakes>> _loadMedicationWithIntakes(
+  MedicationRepository repository,
+) async {
+  final meds = await repository.getAll();
+
+  final todayGroups = <MedicationWithIntakes>[];
+
+  for (final med in meds) {
+    final intakes = await repository.getTodaysIntakes(med.id);
+    if (intakes.isNotEmpty) {
+      todayGroups.add(MedicationWithIntakes(med, intakes));
+    }
+  }
+
+  final now = DateTime.now();
+  todayGroups.sort((a, b) => compareMedicationGroups(a, b, now));
+
+  return todayGroups;
+}
+
 int compareMedicationGroups(
   MedicationWithIntakes a,
   MedicationWithIntakes b,
@@ -316,3 +322,12 @@ final medicationNotifierProvider =
     AsyncNotifierProvider<MedicationNotifier, List<MedicationWithIntakes>>(
       () => MedicationNotifier(),
     );
+
+final medicationByUserProvider =
+    FutureProvider.family<List<MedicationWithIntakes>, String>((
+      ref,
+      userId,
+    ) async {
+      final repository = ref.watch(medicationRepositoryByUserIdProvider(userId));
+      return _loadMedicationWithIntakes(repository);
+    });

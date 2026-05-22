@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 /// Экран выбора: добавить по коду / подопечного (вкладка «Добавить»).
-class AddMenuPage extends StatelessWidget {
-  const AddMenuPage({super.key});
+class MenuAddPerson extends StatelessWidget {
+  const MenuAddPerson({super.key});
 
   static const Color _brand = Color(0xFF202D85);
   static const Color _limeCard = Color(0xFFEEF6D8);
@@ -13,10 +13,7 @@ class AddMenuPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text('Добавить'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Добавить'), centerTitle: true),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -33,7 +30,9 @@ class AddMenuPage extends StatelessWidget {
                 onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Ввод кода или сканирование QR — в разработке'),
+                      content: Text(
+                        'Ввод кода или сканирование QR — в разработке',
+                      ),
                     ),
                   );
                 },
@@ -46,7 +45,7 @@ class AddMenuPage extends StatelessWidget {
                 title: 'Подопечного',
                 subtitle:
                     'Я хочу добавить человека (или питомца) о котором буду заботиться',
-                onTap: () => context.push('/add/medication'),
+                onTap: () => context.push('/add/ward'),
               ),
               const Spacer(),
             ],
@@ -89,7 +88,7 @@ class _AddOptionCard extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AddMenuPage._borderLight),
+            border: Border.all(color: MenuAddPerson._borderLight),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,7 +102,7 @@ class _AddOptionCard extends StatelessWidget {
                     Text(
                       title,
                       style: textTheme.titleMedium?.copyWith(
-                        color: AddMenuPage._brand,
+                        color: MenuAddPerson._brand,
                         fontWeight: FontWeight.bold,
                         height: 1.25,
                       ),

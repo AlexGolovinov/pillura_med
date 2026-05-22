@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:go_router/go_router.dart';
 import 'package:pillura_med/core/extension/theme_extension.dart';
-import 'package:pillura_med/data/models/medication_data.dart';
 import 'package:pillura_med/domain/entities/medication.dart';
 
 import '../../domain/entities/intake_rec/intake_record.dart';
@@ -16,6 +14,9 @@ class MedicationCard extends StatelessWidget {
   final List<IntakeRecord> intakeRecords;
   final String courseInfo;
   final Color? color;
+  final bool canEditMedication;
+  final bool canTrackIntake;
+  final VoidCallback onEditMedication;
   final VoidCallback deleteMedication;
   final Function(IntakeRecord) onTake;
   final Function(IntakeRecord) onSkip;
@@ -27,6 +28,9 @@ class MedicationCard extends StatelessWidget {
     required this.dosageType,
     required this.startDate,
     required this.intakeRecords,
+    this.canEditMedication = true,
+    this.canTrackIntake = true,
+    required this.onEditMedication,
     required this.deleteMedication,
     required this.courseInfo,
     this.color,
@@ -36,11 +40,6 @@ class MedicationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    editMedication() {
-      final mData = MedicationData(isEdit: true, medication: medication);
-      context.push('/addMedication', extra: mData);
-    }
-
     deleteMedicationDialog() {
       showDialog(
         context: context,
@@ -84,97 +83,9 @@ class MedicationCard extends StatelessWidget {
     int isNotTaken = todayRecords
         .where((record) => record.isTaken == false)
         .length;
-    return Slidable(
-      key: UniqueKey(),
-      endActionPane: ActionPane(
-        motion: const ScrollMotion(),
-        extentRatio: 0.25,
-        children: [
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  GestureDetector(
-                    onTap: () {},
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200], //const Color(0xFFF4F4F4),
-                        borderRadius: BorderRadius.only(
-                          bottomLeft: Radius.circular(10),
-                          topLeft: Radius.circular(10),
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      //margin: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
-                        child: const Icon(
-                          Icons.check,
-                          size: 28,
-                          color: Colors.green,
-                        ),
-                      ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      editMedication();
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200], //const Color(0xFFF4F4F4),
-                        borderRadius: BorderRadius.only(
-                          bottomLeft: Radius.circular(10),
-                          topLeft: Radius.circular(10),
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      //margin: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
-                        child: Icon(
-                          Icons.edit_outlined,
-                          size: 28,
-                          color: Colors.blue,
-                        ),
-                      ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      deleteMedicationDialog();
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200], //const Color(0xFFF4F4F4),
-                        borderRadius: BorderRadius.only(
-                          bottomLeft: Radius.circular(10),
-                          topLeft: Radius.circular(10),
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      //margin: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
-                        child: const Icon(
-                          Icons.delete_forever_rounded,
-                          size: 28,
-                          color: Colors.red,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Container(
+    final cardContent = Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Container(
           height: 130,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
@@ -286,6 +197,7 @@ class MedicationCard extends StatelessWidget {
                                   context,
                                   onTake,
                                   onSkip,
+                                  canTrackIntake,
                                 );
                               },
                               child: Padding(
@@ -329,7 +241,99 @@ class MedicationCard extends StatelessWidget {
             ],
           ),
         ),
+      );
+
+    if (!canEditMedication) {
+      return cardContent;
+    }
+
+    return Slidable(
+      key: UniqueKey(),
+      endActionPane: ActionPane(
+        motion: const ScrollMotion(),
+        extentRatio: 0.25,
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  GestureDetector(
+                    onTap: () {},
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200], //const Color(0xFFF4F4F4),
+                        borderRadius: BorderRadius.only(
+                          bottomLeft: Radius.circular(10),
+                          topLeft: Radius.circular(10),
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      //margin: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
+                        child: const Icon(
+                          Icons.check,
+                          size: 28,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: canEditMedication ? onEditMedication : null,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200], //const Color(0xFFF4F4F4),
+                        borderRadius: BorderRadius.only(
+                          bottomLeft: Radius.circular(10),
+                          topLeft: Radius.circular(10),
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      //margin: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
+                        child: Icon(
+                          Icons.edit_outlined,
+                          size: 28,
+                          color: canEditMedication
+                              ? Colors.blue
+                              : Colors.grey.shade500,
+                        ),
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: canEditMedication ? deleteMedicationDialog : null,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200], //const Color(0xFFF4F4F4),
+                        borderRadius: BorderRadius.only(
+                          bottomLeft: Radius.circular(10),
+                          topLeft: Radius.circular(10),
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      //margin: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
+                        child: const Icon(
+                          Icons.delete_forever_rounded,
+                          size: 28,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
+      child: cardContent,
     );
   }
 }
@@ -358,6 +362,7 @@ showIntakeDialog(
   BuildContext context,
   Function(IntakeRecord) onTake,
   Function(IntakeRecord) onSkip,
+  bool canTrackIntake,
 ) {
   showDialog(
     context: context,
@@ -376,15 +381,18 @@ showIntakeDialog(
             ),
           ],
         ),
-        actions: isAfter
+        actions: isAfter || !canTrackIntake
             ? null
             : [
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton(
-                        style: TextButton.styleFrom(
+                        
+                        style: ElevatedButton.styleFrom(
                           foregroundColor: Colors.red,
+                          backgroundColor: Colors.white54,
+                          textStyle: Theme.of(context).textTheme.bodyMedium,
                         ),
                         onPressed: () {
                           onSkip(record);
@@ -396,8 +404,10 @@ showIntakeDialog(
                     SizedBox(width: 16),
                     Expanded(
                       child: ElevatedButton(
-                        style: TextButton.styleFrom(
+                        style: ElevatedButton.styleFrom(
                           foregroundColor: Colors.green,
+                          backgroundColor: Colors.white54,
+                          textStyle: Theme.of(context).textTheme.bodyMedium,
                         ),
                         onPressed: () {
                           onTake(record);

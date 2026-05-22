@@ -7,6 +7,7 @@ class AuthUser {
   final String? name;
   final bool isAnonymous;
   final bool isAuthenticated;
+  final bool isWard;
 
   AuthUser({
     required this.uid,
@@ -14,6 +15,7 @@ class AuthUser {
     this.name,
     required this.isAnonymous,
     required this.isAuthenticated,
+    this.isWard = false,
   });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class AuthUser {
       name: json['name'],
       isAnonymous: json['isAnonymous'] ?? false,
       isAuthenticated: json['isAuthenticated'] ?? false,
+      isWard: json['isWard'] ?? false,
     );
   }
 
@@ -33,6 +36,7 @@ class AuthUser {
       'name': name,
       'isAnonymous': isAnonymous,
       'isAuthenticated': isAuthenticated,
+      'isWard': isWard,
     };
   }
 
@@ -43,6 +47,7 @@ class AuthUser {
       name: user.displayName,
       isAnonymous: user.isAnonymous,
       isAuthenticated: true,
+      isWard: false,
     );
   }
 }

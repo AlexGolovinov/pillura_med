@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/auth_user.dart';
+import '../../domain/entities/linked_user_access.dart';
 
 import '../../domain/repositories/auth_repository.dart';
 import 'repository_provider.dart';
@@ -107,8 +108,32 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
       AuthUser(uid: '', isAuthenticated: false, isAnonymous: false),
     );
   }
+
+  Future<void> addWard(String wardName) async {
+    final currentUser = state.value;
+    if (currentUser == null || !currentUser.isAuthenticated) {
+      return;
+    }
+
+    final result = await _repo.addWard(wardName);
+    result.fold(
+      (error) => state = AsyncValue.error(error, StackTrace.current),
+      (_) {},
+    );
+  }
 }
 
 final authNotifierProvider = AsyncNotifierProvider<AuthNotifier, AuthUser>(
   () => AuthNotifier(),
 );
+
+final linkedUsersProvider = FutureProvider<List<LinkedUserAccess>>((ref) async {
+  final user = await ref.watch(authNotifierProvider.future);
+  if (!user.isAuthenticated) {
+    return <LinkedUserAccess>[];
+  }
+
+  final repo = ref.read(authFRepositoryProvider);
+  final result = await repo.getLinkedUsersForUser(user.uid);
+  return result.fold((_) => <LinkedUserAccess>[], (users) => users);
+});

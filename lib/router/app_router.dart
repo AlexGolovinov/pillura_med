@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pillura_med/data/models/add_medication_route_data.dart';
 import 'package:pillura_med/data/models/medication_data.dart';
 import 'package:pillura_med/presentation/pages/add_medication.dart';
-import 'package:pillura_med/presentation/pages/add_menu_page.dart';
+import 'package:pillura_med/presentation/pages/add_person/add_ward.dart';
+import 'package:pillura_med/presentation/pages/add_person/menu_add_person.dart';
 import 'package:pillura_med/presentation/pages/landing.dart';
 import 'package:pillura_med/presentation/pages/medication_page.dart';
 import 'package:pillura_med/presentation/pages/profile_page.dart';
@@ -68,8 +70,16 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 path: '/addMedication',
                 name: 'AddMedication',
                 builder: (context, state) {
-                  final extra = state.extra as MedicationData?;
-                  return AddMedicationPage(mData: extra);
+                  final extra = state.extra;
+                  if (extra is AddMedicationRouteData) {
+                    return AddMedicationPage(routeData: extra);
+                  }
+                  if (extra is MedicationData) {
+                    return AddMedicationPage(
+                      routeData: AddMedicationRouteData(medicationData: extra),
+                    );
+                  }
+                  return const AddMedicationPage();
                 },
               ),
             ],
@@ -78,16 +88,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/add',
-                name: 'AddMenu',
-                builder: (context, state) => const AddMenuPage(),
+                name: 'MenuAddPerson',
+                builder: (context, state) => const MenuAddPerson(),
                 routes: [
                   GoRoute(
-                    path: 'medication',
-                    name: 'AddMedicationFromAddHub',
-                    builder: (context, state) {
-                      final extra = state.extra as MedicationData?;
-                      return AddMedicationPage(mData: extra);
-                    },
+                    path: 'ward',
+                    name: 'AddWard',
+                    builder: (context, state) => const AddWard(),
                   ),
                 ],
               ),

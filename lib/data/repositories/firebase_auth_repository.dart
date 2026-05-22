@@ -3,6 +3,8 @@ import 'package:dartz/dartz.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 
 import '../../domain/entities/auth_user.dart';
+import '../../domain/entities/linked_user_access.dart';
+import '../../domain/entities/user_link.dart';
 import '../../domain/repositories/auth_repository.dart';
 
 class FirebaseAuthRepository implements AuthRepository {
@@ -45,6 +47,151 @@ class FirebaseAuthRepository implements AuthRepository {
       return (await getOrCreateUser(
         cred.user,
       )).fold((l) => left(l), (r) => right(r));
+    } catch (e) {
+      return left(e);
+    }
+  }
+
+  @override
+  Future<Either<dynamic, void>> grantAccessLink({
+    required String outUserId,
+    required String inUserId,
+    required UserLinkPermission permission,
+    UserLinkType type = UserLinkType.share,
+  }) async {
+    try {
+      final normalizedOutUserId = outUserId.trim();
+      final normalizedInUserId = inUserId.trim();
+
+      if (normalizedOutUserId.isEmpty || normalizedInUserId.isEmpty) {
+        return left(Exception('outUserId и inUserId обязательны'));
+      }
+
+      if (normalizedOutUserId == normalizedInUserId) {
+        return left(Exception('Нельзя выдать доступ самому себе'));
+      }
+
+      final existing = await _firestore
+          .collection('user_links')
+          .where('outUserId', isEqualTo: normalizedOutUserId)
+          .where('inUserId', isEqualTo: normalizedInUserId)
+          .limit(1)
+          .get();
+
+      if (existing.docs.isNotEmpty) {
+        await existing.docs.first.reference.update({
+          'permission': permission.name,
+          'status': UserLinkStatus.active.name,
+          'type': type.name,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        await _firestore.collection('user_links').add({
+          'outUserId': normalizedOutUserId,
+          'inUserId': normalizedInUserId,
+          'permission': permission.name,
+          'status': UserLinkStatus.active.name,
+          'type': type.name,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      return right(null);
+    } catch (e) {
+      return left(e);
+    }
+  }
+
+  @override
+  Future<Either<dynamic, void>> addWard(String wardName) async {
+    try {
+      final currentUser = _firebaseAuth.currentUser;
+      if (currentUser == null) {
+        return left(Exception('Пользователь не авторизован'));
+      }
+
+      final normalizedWardName = wardName.trim();
+      if (normalizedWardName.isEmpty) {
+        return left(Exception('Имя подопечного не может быть пустым'));
+      }
+
+      final wardDocRef = _firestore.collection('users').doc();
+      final wardId = wardDocRef.id;
+      await wardDocRef.set({
+        'uid': wardId,
+        'email': null,
+        'name': normalizedWardName,
+        'isAnonymous': false,
+        'isAuthenticated': false,
+        'isWard': true,
+      });
+
+      await _firestore.collection('user_links').add({
+        'outUserId': wardId,
+        'inUserId': currentUser.uid,
+        'permission': UserLinkPermission.editor.name,
+        'status': UserLinkStatus.active.name,
+        'type': UserLinkType.ward.name,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      return right(null);
+    } catch (e) {
+      return left(e);
+    }
+  }
+
+  @override
+  Future<Either<dynamic, List<LinkedUserAccess>>> getLinkedUsersForUser(
+    String userId,
+  ) async {
+    try {
+      final incomingLinksSnapshot = await _firestore
+          .collection('user_links')
+          .where('inUserId', isEqualTo: userId)
+          .where('status', isEqualTo: UserLinkStatus.active.name)
+          .get();
+
+      if (incomingLinksSnapshot.docs.isEmpty) {
+        return right(<LinkedUserAccess>[]);
+      }
+
+      final links = incomingLinksSnapshot.docs
+          .map((doc) => UserLink.fromJson(doc.id, doc.data()))
+          .where((link) => link.outUserId != userId)
+          .toList();
+
+      final linkedIds = links.map((link) => link.outUserId).toSet().toList();
+
+      if (linkedIds.isEmpty) {
+        return right(<LinkedUserAccess>[]);
+      }
+
+      final usersSnapshot = await _firestore
+          .collection('users')
+          .where('uid', whereIn: linkedIds)
+          .get();
+
+      final usersById = {
+        for (final doc in usersSnapshot.docs) doc.data()['uid'] as String: doc,
+      };
+
+      final linkedUsers = <LinkedUserAccess>[];
+      for (final link in links) {
+        final userDoc = usersById[link.outUserId];
+        if (userDoc == null) {
+          continue;
+        }
+        linkedUsers.add(
+          LinkedUserAccess(
+            user: AuthUser.fromJson(userDoc.data()),
+            permission: link.permission,
+            linkType: link.type,
+          ),
+        );
+      }
+
+      return right(linkedUsers);
     } catch (e) {
       return left(e);
     }

@@ -1,4 +1,3 @@
-import 'package:pillura_med/data/models/medication_data.dart';
 import 'package:pillura_med/domain/entities/intake_rec/intake_record.dart';
 
 import '../entities/medication.dart';

@@ -93,6 +93,20 @@ class AppTheme {
           borderSide: BorderSide(color: Color(0xFFD9D9D9)),
         ),
       ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF202D85),
+          foregroundColor: Colors.white,
+          minimumSize: const Size(0, 41),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          textStyle: GoogleFonts.openSans(
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
+          ),
+        ),
+      ),
     );
   }
 }
