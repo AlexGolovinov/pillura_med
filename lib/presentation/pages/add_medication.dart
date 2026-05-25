@@ -64,6 +64,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
   bool switchAuto = false;
   bool switchWithBreak = false;
   int? selectedPicker;
+  bool _isSavingMedication = false;
 
   @override
   Widget build(BuildContext context) {
@@ -381,7 +382,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      onPressed: widget.canEdit
+                      onPressed: widget.canEdit && !_isSavingMedication
                           ? () {
                               _addMedicine();
                             }
@@ -426,183 +427,233 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
       final formatted = DateFormat('dd.MM.yyyy').format(DateTime.now());
       showDialog(
         context: context,
-        builder: (_) => Dialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Заголовок и причина
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _name ?? '',
-                      style: Theme.of(context).textTheme.titleMedium!.copyWith(
-                        fontWeight: FontWeight.bold,
+        barrierDismissible: false,
+        builder: (_) => StatefulBuilder(
+          builder: (context, setDialogState) => Dialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 8,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Заголовок и причина
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _name ?? '',
+                        style: Theme.of(context).textTheme.titleMedium!
+                            .copyWith(fontWeight: FontWeight.bold),
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade600,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'причина: ${_reason?.isEmpty == false ? _reason : 'Не указана'}',
-                        style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade600,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'причина: ${_reason?.isEmpty == false ? _reason : 'Не указана'}',
+                          style: Theme.of(context).textTheme.bodyMedium!
+                              .copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                         ),
                       ),
+                    ],
+                  ),
+                  Text(
+                    'c $formatted',
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Принимать: ',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                        TextSpan(
+                          text:
+                              '$_dosage ${_dosageType?.shortLabel ?? ''} ${_mealRelation?.label.toLowerCase() ?? ''} ',
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                Text(
-                  'c $formatted',
-                  style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
-                ),
-                const SizedBox(height: 16),
-                Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: 'Принимать: ',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                      TextSpan(
-                        text:
-                            '$_dosage ${_dosageType?.shortLabel ?? ''} ${_mealRelation?.label.toLowerCase() ?? ''} ',
-                      ),
-                    ],
+                    style: TextStyle(fontSize: 15),
                   ),
-                  style: TextStyle(fontSize: 15),
-                ),
-                const SizedBox(height: 6),
-                Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: 'Длительность приема: ',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                      TextSpan(
-                        text:
-                            '${_durationTaking?.count ?? 'Не указано'}  ${_durationTaking?.unit.shortLabel.toLowerCase() ?? ''}',
-                      ),
-                    ],
+                  const SizedBox(height: 6),
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Длительность приема: ',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                        TextSpan(
+                          text:
+                              '${_durationTaking?.count ?? 'Не указано'}  ${_durationTaking?.unit.shortLabel.toLowerCase() ?? ''}',
+                        ),
+                      ],
+                    ),
+                    style: TextStyle(fontSize: 15),
                   ),
-                  style: TextStyle(fontSize: 15),
-                ),
-                _durationBreak != null
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 6),
-                          Text.rich(
-                            TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: 'Перерыв: ',
-                                  style: TextStyle(color: Colors.grey[600]),
-                                ),
-                                TextSpan(
-                                  text:
-                                      '${_durationBreak?.count ?? ''}  ${_durationBreak?.unit.shortLabel.toLowerCase() ?? ''}',
-                                ),
-                              ],
+                  _durationBreak != null
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 6),
+                            Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: 'Перерыв: ',
+                                    style: TextStyle(color: Colors.grey[600]),
+                                  ),
+                                  TextSpan(
+                                    text:
+                                        '${_durationBreak?.count ?? ''}  ${_durationBreak?.unit.shortLabel.toLowerCase() ?? ''}',
+                                  ),
+                                ],
+                              ),
+                              style: TextStyle(fontSize: 15),
                             ),
-                            style: TextStyle(fontSize: 15),
+                          ],
+                        )
+                      : Container(),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Время приема:',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 15),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _intakeTimes!
+                        .map(
+                          (e) => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.grey.shade400),
+                            ),
+                            child: Text(
+                              e.hhmm,
+                              style: const TextStyle(fontSize: 15),
+                            ),
                           ),
-                        ],
-                      )
-                    : Container(),
-                const SizedBox(height: 16),
-                Text(
-                  'Время приема:',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 15),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _intakeTimes!
-                      .map(
-                        (e) => Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.grey.shade400),
-                          ),
-                          child: Text(
-                            e.hhmm,
-                            style: const TextStyle(fontSize: 15),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-                const SizedBox(height: 24),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 24),
 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFF202D85),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF202D85),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: _isSavingMedication
+                            ? null
+                            : () => _confirmMedicationSave(setDialogState),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Opacity(
+                              opacity: _isSavingMedication ? 0 : 1,
+                              child: Text(
+                                'Все верно',
+                                style: Theme.of(context).textTheme.titleMedium!
+                                    .copyWith(color: Colors.white),
+                              ),
+                            ),
+                            if (_isSavingMedication)
+                              const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                      onPressed: () async {
-                        await _saveMedicationForSelectedProfile();
-                        if (!mounted) return;
-                        context.pop();
-                        context.go('/profilePage');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Сохранено ✅')),
-                        );
-                      },
-                      child: Text(
-                        'Все верно',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.titleMedium!.copyWith(color: Colors.white),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                      if (!_isSavingMedication) ...[
+                        const SizedBox(width: 12),
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            side: BorderSide(
+                              color: Color(0xFF202D85),
+                              width: 1.5,
+                            ),
+                          ),
+                          onPressed: () => context.pop(),
+                          child: const Text(
+                            'Кое-что изменить',
+                            style: TextStyle(color: Color(0xFF202D85)),
+                          ),
                         ),
-                        side: BorderSide(color: Color(0xFF202D85), width: 1.5),
-                      ),
-                      onPressed: () => context.pop(),
-                      child: const Text(
-                        'Кое-что изменить',
-                        style: TextStyle(color: Color(0xFF202D85)),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                      ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       );
+    }
+  }
+
+  Future<void> _confirmMedicationSave(StateSetter setDialogState) async {
+    if (_isSavingMedication) return;
+
+    void updateSavingState(bool value) {
+      if (!mounted) return;
+      setState(() {
+        _isSavingMedication = value;
+      });
+      setDialogState(() {});
+    }
+
+    var didNavigate = false;
+    updateSavingState(true);
+    try {
+      await _saveMedicationForSelectedProfile();
+      if (!mounted) return;
+      didNavigate = true;
+      context.pop();
+      context.go('/profilePage');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Сохранено ✅')));
+    } finally {
+      if (!didNavigate) {
+        updateSavingState(false);
+      }
     }
   }
 
