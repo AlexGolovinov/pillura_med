@@ -6,6 +6,10 @@ import '../../data/repositories/firebase_medication_repository.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/medication_repository.dart';
 
+final firebaseAuthStateProvider = StreamProvider<fb.User?>((ref) {
+  return fb.FirebaseAuth.instance.authStateChanges();
+});
+
 // Провайдер для репозитория авторизации
 final authFRepositoryProvider = Provider<AuthRepository>((ref) {
   return FirebaseAuthRepository(
@@ -22,7 +26,7 @@ final medicationFRepositoryProvider = Provider<MedicationRepository>((ref) {
 });
 
 final currentUserIdProvider = Provider<String?>((ref) {
-  return fb.FirebaseAuth.instance.currentUser?.uid;
+  return ref.watch(firebaseAuthStateProvider).value?.uid;
 });
 
 final medicationRepositoryByUserIdProvider =
