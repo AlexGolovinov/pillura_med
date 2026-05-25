@@ -18,13 +18,6 @@ final authFRepositoryProvider = Provider<AuthRepository>((ref) {
   );
 });
 
-final medicationFRepositoryProvider = Provider<MedicationRepository>((ref) {
-  return FirebaseMedicationRepository(
-    FirebaseFirestore.instance,
-    fb.FirebaseAuth.instance.currentUser!.uid,
-  );
-});
-
 final currentUserIdProvider = Provider<String?>((ref) {
   return ref.watch(firebaseAuthStateProvider).value?.uid;
 });

@@ -29,8 +29,20 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool _selectedLinkedUserCanEdit = false;
   UserLinkType? _selectedLinkedUserType;
 
+  void _resetSelectedProfile() {
+    _selectedLinkedUserId = null;
+    _selectedLinkedUserName = null;
+    _selectedLinkedUserCanEdit = false;
+    _selectedLinkedUserType = null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen<String?>(currentUserIdProvider, (previous, next) {
+      if (previous == next || !mounted) return;
+      setState(_resetSelectedProfile);
+    });
+
     final linkedUsers = ref.watch(linkedUsersProvider);
     final isOwnProfileSelected = _selectedLinkedUserId == null;
     final canEditSelectedProfile =
@@ -88,12 +100,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         title: 'Мой',
                         isSelected: isOwnProfileSelected,
                         onTap: () {
-                          setState(() {
-                            _selectedLinkedUserId = null;
-                            _selectedLinkedUserName = null;
-                            _selectedLinkedUserCanEdit = false;
-                            _selectedLinkedUserType = null;
-                          });
+                          setState(_resetSelectedProfile);
                         },
                       ),
                       const SizedBox(width: 12),
@@ -127,24 +134,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 title: 'Мой',
                 isSelected: isOwnProfileSelected,
                 onTap: () {
-                  setState(() {
-                    _selectedLinkedUserId = null;
-                    _selectedLinkedUserName = null;
-                    _selectedLinkedUserCanEdit = false;
-                    _selectedLinkedUserType = null;
-                  });
+                  setState(_resetSelectedProfile);
                 },
               ),
               error: (_, __) => _QrUserCard(
                 title: 'Мой',
                 isSelected: isOwnProfileSelected,
                 onTap: () {
-                  setState(() {
-                    _selectedLinkedUserId = null;
-                    _selectedLinkedUserName = null;
-                    _selectedLinkedUserCanEdit = false;
-                    _selectedLinkedUserType = null;
-                  });
+                  setState(_resetSelectedProfile);
                 },
               ),
             ),

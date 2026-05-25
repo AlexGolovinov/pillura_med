@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,32 +11,44 @@ import 'repository_provider.dart';
 
 class AuthNotifier extends AsyncNotifier<AuthUser> {
   late final AuthRepository _repo;
+  StreamSubscription? _authSubscription;
 
   @override
   Future<AuthUser> build() async {
     _repo = ref.read(authFRepositoryProvider);
 
-    // ставим загрузку
-    state = const AsyncValue.loading();
-    final either = await _repo.authStateChanges().first;
+    final firstUser = Completer<AuthUser>();
+    _authSubscription = _repo.authStateChanges().listen(
+      (either) {
+        final user = either.fold(
+          (_) => AuthUser(uid: '', isAuthenticated: false, isAnonymous: false),
+          (r) => r,
+        );
 
-    // подписываемся на изменения аутентификации
-    return either.fold(
-      (l) => AuthUser(uid: '', isAuthenticated: false, isAnonymous: false),
-      (r) => r,
+        if (!firstUser.isCompleted) {
+          firstUser.complete(user);
+          return;
+        }
+
+        state = AsyncValue.data(user);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!firstUser.isCompleted) {
+          firstUser.completeError(error, stackTrace);
+          return;
+        }
+        state = AsyncValue.error(error, stackTrace);
+      },
     );
+    ref.onDispose(() => _authSubscription?.cancel());
+
+    return firstUser.future;
   }
 
   Future<AuthUser> signInAnonymously() async {
     state = const AsyncValue.loading();
     try {
       final user = await _repo.signInAnonymously();
-      state = AsyncValue.data(
-        user.fold(
-          (l) => AuthUser(uid: '', isAuthenticated: false, isAnonymous: false),
-          (r) => r!,
-        ),
-      );
       return user.fold(
         (l) => AuthUser(uid: '', isAnonymous: false, isAuthenticated: false),
         (r) => r!,
@@ -46,8 +60,9 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
   }
 
   Future<void> signInWithEmail(String email, String password) async {
+    state = const AsyncValue.loading();
     final user = await _repo.signInWithEmail(email, password);
-    state = user.fold((l) {
+    user.fold((l) {
       if (l is FirebaseAuthException) {
         String userMessage;
 
@@ -71,10 +86,11 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
           default:
             userMessage = 'Ошибка входа: ${l.message ?? 'неизвестная ошибка'}';
         }
-        return AsyncError(userMessage, StackTrace.current);
+        state = AsyncError(userMessage, StackTrace.current);
+        return;
       }
-      return AsyncError(l, StackTrace.current);
-    }, (r) => AsyncData(r!));
+      state = AsyncError(l, StackTrace.current);
+    }, (_) {});
     //AsyncValue.data(user.fold((l) => null, (r) => r));
   }
 
@@ -86,12 +102,6 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
     state = const AsyncValue.loading();
     try {
       final user = await _repo.registerWithEmail(email, password, name);
-      state = AsyncValue.data(
-        user.fold(
-          (l) => AuthUser(uid: '', isAuthenticated: false, isAnonymous: false),
-          (r) => r!,
-        ),
-      );
       return user.fold(
         (l) => AuthUser(uid: '', isAuthenticated: false, isAnonymous: false),
         (r) => r!,
@@ -103,9 +113,11 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
   }
 
   Future<void> signOut() async {
-    await _repo.signOut();
-    state = AsyncValue.data(
-      AuthUser(uid: '', isAuthenticated: false, isAnonymous: false),
+    state = const AsyncValue.loading();
+    final result = await _repo.signOut();
+    result.fold(
+      (error) => state = AsyncValue.error(error, StackTrace.current),
+      (_) {},
     );
   }
 
@@ -128,8 +140,8 @@ final authNotifierProvider = AsyncNotifierProvider<AuthNotifier, AuthUser>(
 );
 
 final linkedUsersProvider = FutureProvider<List<LinkedUserAccess>>((ref) async {
-  final user = await ref.watch(authNotifierProvider.future);
-  if (!user.isAuthenticated) {
+  final user = ref.watch(authNotifierProvider).value;
+  if (user == null || !user.isAuthenticated) {
     return <LinkedUserAccess>[];
   }
 
