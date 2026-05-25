@@ -31,11 +31,14 @@ class MedicationWithIntakes {
 }
 
 class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
+  MedicationNotifier(this._userId);
+
   late final MedicationRepository _repo;
+  final String _userId;
   @override
   Future<List<MedicationWithIntakes>> build() async {
     _repo = ref.read(
-      medicationFRepositoryProvider,
+      medicationRepositoryByUserIdProvider(_userId),
     ); // <- берём репозиторий через провайдер
     return _loadMedicationWithIntakes(_repo);
   }
@@ -181,6 +184,9 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
   }
 
   Future<void> syncTakenFromPrefs() async {
+    if (_userId != ref.read(currentUserIdProvider)) {
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
     if (prefs.getKeys().isEmpty) return;
@@ -319,15 +325,8 @@ TimeOfDay? getNextIntake(List<TimeOfDay> times, TimeOfDay now) {
 }
 
 final medicationNotifierProvider =
-    AsyncNotifierProvider<MedicationNotifier, List<MedicationWithIntakes>>(
-      () => MedicationNotifier(),
-    );
-
-final medicationByUserProvider =
-    FutureProvider.family<List<MedicationWithIntakes>, String>((
-      ref,
-      userId,
-    ) async {
-      final repository = ref.watch(medicationRepositoryByUserIdProvider(userId));
-      return _loadMedicationWithIntakes(repository);
-    });
+    AsyncNotifierProvider.family<
+      MedicationNotifier,
+      List<MedicationWithIntakes>,
+      String
+    >((userId) => MedicationNotifier(userId));

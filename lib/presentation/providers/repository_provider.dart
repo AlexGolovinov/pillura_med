@@ -21,6 +21,10 @@ final medicationFRepositoryProvider = Provider<MedicationRepository>((ref) {
   );
 });
 
+final currentUserIdProvider = Provider<String?>((ref) {
+  return fb.FirebaseAuth.instance.currentUser?.uid;
+});
+
 final medicationRepositoryByUserIdProvider =
     Provider.family<MedicationRepository, String>((ref, userId) {
       return FirebaseMedicationRepository(FirebaseFirestore.instance, userId);

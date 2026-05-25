@@ -10,6 +10,7 @@ import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
 import 'core/notification_service.dart';
 import 'presentation/providers/medication_provider.dart';
+import 'presentation/providers/repository_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,7 +61,11 @@ class _AppRootState extends ConsumerState<AppRoot> {
     // Register lifecycle listener that uses the same ref
     _listener = AppLifecycleListener(
       onResume: () {
-        ref.read(medicationNotifierProvider.notifier).syncTakenFromPrefs();
+        final userId = ref.read(currentUserIdProvider);
+        if (userId == null) return;
+        ref
+            .read(medicationNotifierProvider(userId).notifier)
+            .syncTakenFromPrefs();
       },
     );
   }

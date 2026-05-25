@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pillura_med/data/models/add_medication_route_data.dart';
 import 'package:pillura_med/data/models/medication_data.dart';
+import 'package:pillura_med/data/models/share_medications_route_data.dart';
 import 'package:pillura_med/presentation/pages/add_medication.dart';
 import 'package:pillura_med/presentation/pages/add_person/add_ward.dart';
 import 'package:pillura_med/presentation/pages/add_person/menu_add_person.dart';
+import 'package:pillura_med/presentation/pages/add_person/share_medications_page.dart';
 import 'package:pillura_med/presentation/pages/landing.dart';
 import 'package:pillura_med/presentation/pages/medication_page.dart';
 import 'package:pillura_med/presentation/pages/profile_page.dart';
@@ -80,6 +82,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     );
                   }
                   return const AddMedicationPage();
+                },
+              ),
+              GoRoute(
+                path: '/shareMedications',
+                name: 'ShareMedications',
+                builder: (context, state) {
+                  final extra = state.extra;
+                  if (extra is ShareMedicationsRouteData) {
+                    return ShareMedicationsPage(
+                      initialUserId: extra.initialUserId,
+                    );
+                  }
+                  return const ShareMedicationsPage();
                 },
               ),
             ],

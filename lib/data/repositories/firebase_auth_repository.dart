@@ -1,9 +1,12 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 
 import '../../domain/entities/auth_user.dart';
 import '../../domain/entities/linked_user_access.dart';
+import '../../domain/entities/share_invite.dart';
 import '../../domain/entities/user_link.dart';
 import '../../domain/repositories/auth_repository.dart';
 
@@ -195,6 +198,134 @@ class FirebaseAuthRepository implements AuthRepository {
     } catch (e) {
       return left(e);
     }
+  }
+
+  @override
+  Future<Either<dynamic, ShareInvite>> regenerateShareInvite({
+    required String profileUserId,
+    required String generatedByUserId,
+    required bool canEdit,
+  }) async {
+    try {
+      final normalizedProfileUserId = profileUserId.trim();
+      final normalizedGeneratedByUserId = generatedByUserId.trim();
+      if (normalizedProfileUserId.isEmpty || normalizedGeneratedByUserId.isEmpty) {
+        return left(Exception('profileUserId и generatedByUserId обязательны'));
+      }
+      final canGenerate = await _canGenerateInviteForProfile(
+        profileUserId: normalizedProfileUserId,
+        generatedByUserId: normalizedGeneratedByUserId,
+      );
+      if (!canGenerate) {
+        return left(
+          Exception(
+            'Этим профилем нельзя поделиться. Вы можете делиться только своим профилем и своими подопечными.',
+          ),
+        );
+      }
+
+      final profileDocRef = _firestore
+          .collection('share_invites_by_profile')
+          .doc(normalizedProfileUserId);
+      final profileSnapshot = await profileDocRef.get();
+      final oldCode = profileSnapshot.data()?['code'] as String?;
+
+      String newCode;
+      DocumentReference<Map<String, dynamic>> lookupDocRef;
+      var attempts = 0;
+      do {
+        attempts++;
+        newCode = _buildInviteCode();
+        lookupDocRef = _firestore
+            .collection('share_invites_lookup')
+            .doc(newCode);
+      } while ((await lookupDocRef.get()).exists && attempts < 20);
+
+      if ((await lookupDocRef.get()).exists) {
+        return left(Exception('Не удалось сгенерировать уникальный код'));
+      }
+
+      final batch = _firestore.batch();
+      final now = FieldValue.serverTimestamp();
+
+      if (oldCode != null && oldCode.isNotEmpty) {
+        final oldLookupRef = _firestore
+            .collection('share_invites_lookup')
+            .doc(oldCode);
+        batch.delete(oldLookupRef);
+      }
+
+      batch.set(profileDocRef, {
+        'profileUserId': normalizedProfileUserId,
+        'generatedByUserId': normalizedGeneratedByUserId,
+        'code': newCode,
+        'canEdit': canEdit,
+        'createdAt': now,
+      });
+
+      batch.set(lookupDocRef, {
+        'profileUserId': normalizedProfileUserId,
+        'generatedByUserId': normalizedGeneratedByUserId,
+        'code': newCode,
+        'canEdit': canEdit,
+        'createdAt': now,
+      });
+
+      await batch.commit();
+
+      return right(
+        ShareInvite(
+          code: newCode,
+          profileUserId: normalizedProfileUserId,
+          generatedByUserId: normalizedGeneratedByUserId,
+          canEdit: canEdit,
+          createdAt: DateTime.now(),
+        ),
+      );
+    } catch (e) {
+      return left(e);
+    }
+  }
+
+  String _buildInviteCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final random = Random.secure();
+    final first = List.generate(
+      3,
+      (_) => chars[random.nextInt(chars.length)],
+    ).join();
+    final second = List.generate(
+      5,
+      (_) => chars[random.nextInt(chars.length)],
+    ).join();
+    return '$first-$second';
+  }
+
+  Future<bool> _canGenerateInviteForProfile({
+    required String profileUserId,
+    required String generatedByUserId,
+  }) async {
+    if (profileUserId == generatedByUserId) {
+      return true;
+    }
+
+    final linksSnapshot = await _firestore
+        .collection('user_links')
+        .where('outUserId', isEqualTo: profileUserId)
+        .where('inUserId', isEqualTo: generatedByUserId)
+        .get();
+
+    for (final doc in linksSnapshot.docs) {
+      final data = doc.data();
+      final isWard = data['type'] == UserLinkType.ward.name;
+      final isActive = data['status'] == UserLinkStatus.active.name;
+      final canEdit = data['permission'] == UserLinkPermission.editor.name;
+      if (isWard && isActive && canEdit) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   @override

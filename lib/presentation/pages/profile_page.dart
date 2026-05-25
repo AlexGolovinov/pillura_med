@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:implicitly_animated_reorderable_list_2/implicitly_animated_reorderable_list_2.dart';
 import 'package:pillura_med/data/models/add_medication_route_data.dart';
 import 'package:pillura_med/data/models/medication_data.dart';
+import 'package:pillura_med/data/models/share_medications_route_data.dart';
+import 'package:pillura_med/domain/entities/user_link.dart';
 import 'package:pillura_med/domain/enums/course_duration_unit.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/presentation/providers/auth_providers.dart';
@@ -25,28 +27,45 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   String? _selectedLinkedUserId;
   String? _selectedLinkedUserName;
   bool _selectedLinkedUserCanEdit = false;
+  UserLinkType? _selectedLinkedUserType;
 
   @override
   Widget build(BuildContext context) {
     final linkedUsers = ref.watch(linkedUsersProvider);
     final isOwnProfileSelected = _selectedLinkedUserId == null;
-    final canEditSelectedProfile = isOwnProfileSelected || _selectedLinkedUserCanEdit;
+    final canEditSelectedProfile =
+        isOwnProfileSelected || _selectedLinkedUserCanEdit;
+    final canShareSelectedProfile =
+        isOwnProfileSelected ||
+        (_selectedLinkedUserType == UserLinkType.ward &&
+            _selectedLinkedUserCanEdit);
+    final currentUserId = ref.watch(currentUserIdProvider);
+    final selectedUserId = _selectedLinkedUserId ?? currentUserId;
     final medicationsTitle = isOwnProfileSelected
         ? 'Мои лекарства'
         : 'Лекарства ${_selectedLinkedUserName ?? ''}';
 
-    final AsyncValue<List<MedicationWithIntakes>> medication;
-    if (isOwnProfileSelected) {
-      medication = ref.watch(medicationNotifierProvider);
-    } else {
-      medication = ref.watch(medicationByUserProvider(_selectedLinkedUserId!));
-    }
+    final AsyncValue<List<MedicationWithIntakes>> medication =
+        selectedUserId == null
+        ? const AsyncValue.loading()
+        : ref.watch(medicationNotifierProvider(selectedUserId));
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Профиль'),
         centerTitle: false,
         actions: [
+          if (canShareSelectedProfile && selectedUserId != null)
+            IconButton(
+              tooltip: 'Поделиться',
+              onPressed: () {
+                context.push(
+                  '/shareMedications',
+                  extra: ShareMedicationsRouteData(initialUserId: selectedUserId),
+                );
+              },
+              icon: const Icon(Icons.ios_share_rounded),
+            ),
           TextButton.icon(
             onPressed: () => context.push('/welcomePage'),
             icon: const Icon(Icons.person_2),
@@ -73,6 +92,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             _selectedLinkedUserId = null;
                             _selectedLinkedUserName = null;
                             _selectedLinkedUserCanEdit = false;
+                            _selectedLinkedUserType = null;
                           });
                         },
                       ),
@@ -93,6 +113,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                 _selectedLinkedUserId = user.uid;
                                 _selectedLinkedUserName = title;
                                 _selectedLinkedUserCanEdit = linkedUser.canEdit;
+                                _selectedLinkedUserType = linkedUser.linkType;
                               });
                             },
                           ),
@@ -110,6 +131,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     _selectedLinkedUserId = null;
                     _selectedLinkedUserName = null;
                     _selectedLinkedUserCanEdit = false;
+                    _selectedLinkedUserType = null;
                   });
                 },
               ),
@@ -121,6 +143,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     _selectedLinkedUserId = null;
                     _selectedLinkedUserName = null;
                     _selectedLinkedUserCanEdit = false;
+                    _selectedLinkedUserType = null;
                   });
                 },
               ),
@@ -187,44 +210,36 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             },
                             deleteMedication: () {
                               if (!canEditSelectedProfile) return;
-                              if (isOwnProfileSelected) {
-                                ref
-                                    .read(medicationNotifierProvider.notifier)
-                                    .deleteMedication(item.medication.id);
-                              } else {
-                                _deleteMedicationForLinkedUser(
-                                  _selectedLinkedUserId!,
-                                  item.medication.id,
-                                );
-                              }
+                              if (selectedUserId == null) return;
+                              ref
+                                  .read(
+                                    medicationNotifierProvider(
+                                      selectedUserId,
+                                    ).notifier,
+                                  )
+                                  .deleteMedication(item.medication.id);
                             },
                             onTake: (IntakeRecord record) {
                               if (!canEditSelectedProfile) return;
-                              if (isOwnProfileSelected) {
-                                ref
-                                    .read(medicationNotifierProvider.notifier)
-                                    .updateIntakeTimeFromRecord(record, true);
-                              } else {
-                                _updateLinkedUserIntake(
-                                  _selectedLinkedUserId!,
-                                  record,
-                                  true,
-                                );
-                              }
+                              if (selectedUserId == null) return;
+                              ref
+                                  .read(
+                                    medicationNotifierProvider(
+                                      selectedUserId,
+                                    ).notifier,
+                                  )
+                                  .updateIntakeTimeFromRecord(record, true);
                             },
                             onSkip: (IntakeRecord record) {
                               if (!canEditSelectedProfile) return;
-                              if (isOwnProfileSelected) {
-                                ref
-                                    .read(medicationNotifierProvider.notifier)
-                                    .updateIntakeTimeFromRecord(record, false);
-                              } else {
-                                _updateLinkedUserIntake(
-                                  _selectedLinkedUserId!,
-                                  record,
-                                  false,
-                                );
-                              }
+                              if (selectedUserId == null) return;
+                              ref
+                                  .read(
+                                    medicationNotifierProvider(
+                                      selectedUserId,
+                                    ).notifier,
+                                  )
+                                  .updateIntakeTimeFromRecord(record, false);
                             },
                           ),
                         ),
@@ -319,19 +334,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
       floatingActionButton: canEditSelectedProfile
           ? FloatingActionButton(
-        elevation: 3,
-        onPressed: () {
-              context.push(
-                '/addMedication',
-                extra: AddMedicationRouteData(
-                  targetUserId: _selectedLinkedUserId,
-                  targetUserName: _selectedLinkedUserName,
-                  canEdit: canEditSelectedProfile,
-                ),
-              );
-        },
-        backgroundColor: Theme.of(context).primaryColor,
-        child: Icon(Icons.add, size: 45, color: Colors.white),
+              elevation: 3,
+              onPressed: () {
+                context.push(
+                  '/addMedication',
+                  extra: AddMedicationRouteData(
+                    targetUserId: _selectedLinkedUserId,
+                    targetUserName: _selectedLinkedUserName,
+                    canEdit: canEditSelectedProfile,
+                  ),
+                );
+              },
+              backgroundColor: Theme.of(context).primaryColor,
+              child: Icon(Icons.add, size: 45, color: Colors.white),
             )
           : null,
       // bottomNavigationBar: BottomAppBar(
@@ -369,34 +384,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
     return '';
   }
-
-  Future<void> _deleteMedicationForLinkedUser(
-    String linkedUserId,
-    String medicationId,
-  ) async {
-    final repo = ref.read(medicationRepositoryByUserIdProvider(linkedUserId));
-    await repo.cancelNotificationsForMedication(medicationId);
-    await repo.delete(medicationId);
-    ref.invalidate(medicationByUserProvider(linkedUserId));
-  }
-
-  Future<void> _updateLinkedUserIntake(
-    String linkedUserId,
-    IntakeRecord record,
-    bool isTaken,
-  ) async {
-    final repo = ref.read(medicationRepositoryByUserIdProvider(linkedUserId));
-    await repo.updateIntakeTime(record, isTaken);
-    ref.invalidate(medicationByUserProvider(linkedUserId));
-  }
 }
 
 class _QrUserCard extends StatelessWidget {
-  const _QrUserCard({
-    required this.title,
-    this.onTap,
-    this.isSelected = false,
-  });
+  const _QrUserCard({required this.title, this.onTap, this.isSelected = false});
 
   final String title;
   final VoidCallback? onTap;
@@ -429,7 +420,7 @@ class _QrUserCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
-            const Icon(Icons.qr_code_scanner_sharp, size: 35),
+            const Icon(Icons.person_outline_rounded, size: 35),
           ],
         ),
       ),

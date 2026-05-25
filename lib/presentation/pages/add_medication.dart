@@ -383,7 +383,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                       ),
                       onPressed: widget.canEdit
                           ? () {
-                        _addMedicine();
+                              _addMedicine();
                             }
                           : null,
                       child: Text(
@@ -607,7 +607,12 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
   }
 
   Future<void> _saveMedicationForSelectedProfile() async {
-    final targetUserId = widget.targetUserId;
+    final currentUserId = ref.read(currentUserIdProvider);
+    final targetUserId = widget.targetUserId ?? currentUserId;
+    if (targetUserId == null) return;
+    final notifier = ref.read(
+      medicationNotifierProvider(targetUserId).notifier,
+    );
 
     if (widget.mData != null) {
       final med = widget.mData!.medication.copyWith(
@@ -624,58 +629,24 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
         color: _selectedColor?.toARGB32(),
       );
 
-      if (targetUserId == null) {
-        await ref
-            .read(medicationNotifierProvider.notifier)
-            .edit(med, widget.mData!.medication);
-      } else {
-        final repo = ref.read(medicationRepositoryByUserIdProvider(targetUserId));
-        await repo.edit(med, widget.mData!.medication);
-        ref.invalidate(medicationByUserProvider(targetUserId));
-      }
+      await notifier.edit(med, widget.mData!.medication);
       return;
     }
 
-    if (targetUserId == null) {
-      await ref
-          .read(medicationNotifierProvider.notifier)
-          .add(
-            name: _name!,
-            dosage: _dosage!,
-            dosageType: _dosageType!,
-            mealRelation: _mealRelation!,
-            interval: _interval!,
-            intakeTime: _intakeTimes!,
-            startDate: _startDate,
-            durationTaking: _durationTaking,
-            durationBreak: _durationBreak,
-            reason: _reason,
-            symptoms: _symptoms,
-            color: _selectedColor?.toARGB32(),
-          );
-      return;
-    }
-
-    final repo = ref.read(medicationRepositoryByUserIdProvider(targetUserId));
-    final med = Medication(
-      id: '',
-      userId: '',
+    await notifier.add(
       name: _name!,
       dosage: _dosage!,
       dosageType: _dosageType!,
       mealRelation: _mealRelation!,
-      repeatRule: _interval!,
+      interval: _interval!,
       intakeTime: _intakeTimes!,
+      startDate: _startDate,
       durationTaking: _durationTaking,
-      withBreak: _durationBreak != null,
       durationBreak: _durationBreak,
       reason: _reason,
       symptoms: _symptoms,
       color: _selectedColor?.toARGB32(),
-      startDate: _startDate,
     );
-    await repo.add(med);
-    ref.invalidate(medicationByUserProvider(targetUserId));
   }
 
   Widget colorPicker() {

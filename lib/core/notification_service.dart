@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/presentation/providers/medication_provider.dart';
+import 'package:pillura_med/presentation/providers/repository_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../domain/entities/intake_rec/intake_record.dart';
@@ -252,20 +253,39 @@ class NotificationService {
       return;
     }
 
-    final recordId = data['intakeRecordId'];
-    final record = await ref
-        .read(medicationNotifierProvider.notifier)
-        .getIntakeRecordById(recordId!);
+    final recordId = data['intakeRecordId'] as String?;
+    if (recordId == null) {
+      log('Payload does not contain intakeRecordId');
+      return;
+    }
+    final medId = data['medId'] as String?;
+    String? targetUserId = ref.read(currentUserIdProvider);
+    if (medId != null) {
+      final medDoc = await _firestore
+          .collection('medications')
+          .doc(medId)
+          .get();
+      final ownerId = medDoc.data()?['userId'] as String?;
+      if (ownerId != null && ownerId.isNotEmpty) {
+        targetUserId = ownerId;
+      }
+    }
+    if (targetUserId == null) {
+      log('Cannot resolve target user for notification action');
+      return;
+    }
+    final notifier = ref.read(
+      medicationNotifierProvider(targetUserId).notifier,
+    );
+    final record = await notifier.getIntakeRecordById(recordId);
     log(
       'Получена запись приёма: ${record.id} (затрачено: ${DateTime.now().difference(d0).inMilliseconds} ms)',
     );
     final t1 = DateTime.now();
-    ref
-        .read(medicationNotifierProvider.notifier)
-        .updateIntakeTimeFromRecord(
-          record,
-          response.actionId == 'action_take' ? true : false,
-        );
+    await notifier.updateIntakeTimeFromRecord(
+      record,
+      response.actionId == 'action_take' ? true : false,
+    );
     log(
       'Приём помечен как ${response.actionId == 'action_take' ? "принят" : "пропущен"} (затрачено: ${DateTime.now().difference(t1).inMilliseconds} ms)',
     );
