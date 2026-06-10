@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
+import 'package:pillura_med/core/app_snackbar.dart';
 
 void listenErrors(
   BuildContext context,
@@ -13,13 +14,7 @@ void listenErrors(
       final String errorMessage;
       errorMessage = next.error.toString();
 
-      // 3. Отображаем SnackBar (единая точка вызова)
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      AppSnackBar.show(context, errorMessage);
     }
   });
 }

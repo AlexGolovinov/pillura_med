@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pillura_med/core/app_snackbar.dart';
 import 'package:pillura_med/domain/entities/linked_user_access.dart';
 import 'package:pillura_med/domain/entities/user_link.dart';
 import 'package:pillura_med/presentation/providers/auth_providers.dart';
@@ -30,7 +31,7 @@ class MenuAddPerson extends ConsumerWidget {
     final isRestricted = isGuestMode || isWardAccount || hasShareStatus;
 
     final restrictedMessage = isGuestMode
-        ? 'В гостевом режиме доступны только лекарства (до 3 шт).'
+        ? 'В гостевом режиме доступны только лекарства (до 4 шт).'
         : 'Для подопечных и пользователей с share-статусом это действие недоступно.';
 
     return Scaffold(
@@ -51,17 +52,12 @@ class MenuAddPerson extends ConsumerWidget {
                     'У меня есть код / qr, которым со мной поделился другой человек',
                 onTap: () {
                   if (isRestricted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(restrictedMessage)),
-                    );
+                    AppSnackBar.show(context, restrictedMessage);
                     return;
                   }
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Ввод кода или сканирование QR — в разработке',
-                      ),
-                    ),
+                  AppSnackBar.show(
+                    context,
+                    'Ввод кода или сканирование QR — в разработке',
                   );
                 },
               ),
@@ -75,9 +71,7 @@ class MenuAddPerson extends ConsumerWidget {
                     'Я хочу добавить человека (или питомца) о котором буду заботиться',
                 onTap: () {
                   if (isRestricted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(restrictedMessage)),
-                    );
+                    AppSnackBar.show(context, restrictedMessage);
                     return;
                   }
                   context.push('/add/ward');

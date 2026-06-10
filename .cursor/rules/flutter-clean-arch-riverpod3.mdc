@@ -57,6 +57,19 @@ class Medication {
 import '../../data/repositories/firebase_medication_repository.dart';
 ```
 
+## Общие методы `core/` (обязательно)
+
+Полная карта проекта: `docs/PROJECT_MAP.md`.
+
+| Задача | Метод | Не делать |
+|--------|-------|-----------|
+| SnackBar / toast снизу | `AppSnackBar.show(context, message)` | `ScaffoldMessenger.of(context).showSnackBar(...)` |
+| Ошибка AsyncNotifier в UI | `listenErrors(context, ref, provider)` | Ручной SnackBar на `hasError` |
+| Тема, цвета, типографика | `AppTheme` + `context.theme` / extensions | Хардкод стилей в страницах |
+| Локальные уведомления | `notificationServiceProvider` | Прямой вызов пакета из UI |
+
+`AppSnackBar` дедуплицирует сообщения: пока текущий SnackBar виден, новые вызовы игнорируются.
+
 ## Общие принципы
 
 - Новый код кладём в существующий слой, не создаём лишних папок и абстракций «на будущее».

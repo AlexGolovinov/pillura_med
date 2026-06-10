@@ -6,6 +6,7 @@ import 'package:flutter_switch/flutter_switch.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:pillura_med/core/app_snackbar.dart';
 import 'package:pillura_med/core/extension/theme_extension.dart';
 import 'package:pillura_med/core/extension/time_of_day_extension.dart';
 import 'package:pillura_med/data/models/add_medication_route_data.dart';
@@ -389,7 +390,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                             }
                           : null,
                       child: Text(
-                        'Добавить',
+                        widget.mData != null ? 'Сохранить' : 'Добавить',
                         style: Theme.of(
                           context,
                         ).textTheme.titleMedium!.copyWith(color: Colors.white),
@@ -649,9 +650,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
       didNavigate = true;
       context.pop();
       context.go('/profilePage');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Сохранено ✅')));
+      AppSnackBar.show(context, 'Сохранено ✅');
     } finally {
       if (!didNavigate) {
         updateSavingState(false);
@@ -692,12 +691,9 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
       final existingMedications = await repository.getAll();
       if (existingMedications.length >= 4) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'В гостевом режиме можно добавить не больше 4 лекарств',
-              ),
-            ),
+          AppSnackBar.show(
+            context,
+            'В гостевом режиме можно добавить не больше 4 лекарств',
           );
         }
         return false;

@@ -23,5 +23,9 @@ state management, and Firebase integration.
 Personal project. Actively developed and maintained.
 
 
+## Project map
+
+See [docs/PROJECT_MAP.md](docs/PROJECT_MAP.md) for folder structure, navigation, providers, and shared `core/` utilities (`AppSnackBar`, `listenErrors`, etc.).
+
 ## Notes
 Source code is provided for demonstration purposes.

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pillura_med/core/app_snackbar.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
 import 'package:pillura_med/presentation/providers/auth_providers.dart';
 
@@ -70,9 +71,7 @@ class _AddWardState extends ConsumerState<AddWard> {
         await ref.read(authNotifierProvider.notifier).addWard(_name!);
         ref.invalidate(linkedUsersProvider);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Подопечный добавлен')),
-        );
+        AppSnackBar.show(context, 'Подопечный добавлен');
         context.go('/profilePage');
       } finally {
         if (mounted) {

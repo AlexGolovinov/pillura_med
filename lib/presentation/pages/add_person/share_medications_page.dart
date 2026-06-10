@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pillura_med/core/app_snackbar.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../domain/entities/linked_user_access.dart';
@@ -368,9 +369,7 @@ class _ShareMedicationsPageState extends ConsumerState<ShareMedicationsPage> {
 
   void _copyCode(String code) {
     Clipboard.setData(ClipboardData(text: code));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Код скопирован')),
-    );
+    AppSnackBar.show(context, 'Код скопирован');
   }
 }
 
