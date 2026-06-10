@@ -16,6 +16,8 @@ import 'package:pillura_med/presentation/widgets/medication_card.dart';
 import '../../domain/entities/intake_rec/intake_record.dart';
 import '../../domain/entities/medication.dart';
 
+enum _MedicationListFilter { today, all }
+
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
 
@@ -28,6 +30,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   String? _selectedLinkedUserName;
   bool _selectedLinkedUserCanEdit = false;
   UserLinkType? _selectedLinkedUserType;
+  _MedicationListFilter _medicationFilter = _MedicationListFilter.today;
 
   void _resetSelectedProfile() {
     _selectedLinkedUserId = null;
@@ -43,14 +46,24 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       setState(_resetSelectedProfile);
     });
 
+    final authUser = ref.watch(authNotifierProvider).value;
     final linkedUsers = ref.watch(linkedUsersProvider);
+    final hasShareStatus = linkedUsers.maybeWhen(
+      data: (users) =>
+          users.any((user) => user.linkType == UserLinkType.share),
+      orElse: () => false,
+    );
+    final isGuestMode = authUser?.isAnonymous == true;
+    final isWardAccount = authUser?.isWard == true;
+    final canManageSharing = !(isGuestMode || isWardAccount || hasShareStatus);
     final isOwnProfileSelected = _selectedLinkedUserId == null;
     final canEditSelectedProfile =
         isOwnProfileSelected || _selectedLinkedUserCanEdit;
     final canShareSelectedProfile =
-        isOwnProfileSelected ||
-        (_selectedLinkedUserType == UserLinkType.ward &&
-            _selectedLinkedUserCanEdit);
+        canManageSharing &&
+        (isOwnProfileSelected ||
+            (_selectedLinkedUserType == UserLinkType.ward &&
+                _selectedLinkedUserCanEdit));
     final currentUserId = ref.watch(currentUserIdProvider);
     final selectedUserId = _selectedLinkedUserId ?? currentUserId;
     final medicationsTitle = isOwnProfileSelected
@@ -85,12 +98,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.only(left: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            linkedUsers.when(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: linkedUsers.when(
               data: (users) {
                 return SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -145,19 +158,48 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 },
               ),
             ),
-            const SizedBox(height: 24),
-            Center(
+          ),
+          const SizedBox(height: 24),
+          Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Center(
               child: Text(
                 medicationsTitle,
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
             ),
-            const SizedBox(height: 24),
-            medication.when(
+          ),
+          const SizedBox(height: 16),
+          _MedicationFilterBar(
+            selected: _medicationFilter,
+            onChanged: (filter) => setState(() => _medicationFilter = filter),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: medication.when(
               data: (data) {
-                return Expanded(
-                  child: ImplicitlyAnimatedList<MedicationWithIntakes>(
-                    items: data,
+                final filteredData = _medicationFilter ==
+                        _MedicationListFilter.today
+                    ? data
+                        .where((item) => item.todaysIntakes.isNotEmpty)
+                        .toList()
+                    : data;
+
+                if (filteredData.isEmpty) {
+                  return Center(
+                    child: Text(
+                      _medicationFilter == _MedicationListFilter.today
+                          ? 'На сегодня нет лекарств'
+                          : 'Список лекарств пуст',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  );
+                }
+
+                return ImplicitlyAnimatedList<MedicationWithIntakes>(
+                    items: filteredData,
                     areItemsTheSame: (a, b) =>
                         a.medication.id == b.medication.id,
                     insertDuration: const Duration(milliseconds: 600),
@@ -277,7 +319,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         ),
                       );
                     },
-                  ),
+                );
                   // ListView.builder(
                   //   shrinkWrap: true,
                   //   itemCount: data.length + 1,
@@ -317,16 +359,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   //     );
                   //   },
                   // ),
-                );
               },
-              loading: () => Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator()),
               error: (error, stack) => Center(child: Text(error.toString())),
             ),
-
-            // Свайп влево: показывает три кнопки (Удалить, Редактировать, Завершить курс)
-            // Требует зависимость: flutter_slidable
-          ],
+          ),
         ),
+
+        // Свайп влево: показывает три кнопки (Удалить, Редактировать, Завершить курс)
+        // Требует зависимость: flutter_slidable
+        ],
       ),
 
       floatingActionButton: canEditSelectedProfile
@@ -380,6 +422,93 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       return '${endDate.day} ${getMonthName(endDate.month)}';
     }
     return '';
+  }
+}
+
+class _MedicationFilterBar extends StatelessWidget {
+  const _MedicationFilterBar({
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final _MedicationListFilter selected;
+  final ValueChanged<_MedicationListFilter> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: IntrinsicHeight(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _MedicationFilterTab(
+                    label: 'На сегодня',
+                    isSelected: selected == _MedicationListFilter.today,
+                    onTap: () => onChanged(_MedicationListFilter.today),
+                    showRightDivider: true,
+                  ),
+                ),
+                Expanded(
+                  child: _MedicationFilterTab(
+                    label: 'Все',
+                    isSelected: selected == _MedicationListFilter.all,
+                    onTap: () => onChanged(_MedicationListFilter.all),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MedicationFilterTab extends StatelessWidget {
+  const _MedicationFilterTab({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    this.showRightDivider = false,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final bool showRightDivider;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isSelected ? const Color(0xFFD7E4FA) : Colors.white,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          height: 48,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            border: showRightDivider
+                ? Border(right: BorderSide(color: Colors.grey.shade300))
+                : null,
+          ),
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: isSelected ? Colors.indigo.shade700 : Colors.black87,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

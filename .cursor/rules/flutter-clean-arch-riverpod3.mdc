@@ -1,39 +1,64 @@
-Для лучшей реализации кода, можешь уточнять детали, задавать вопросы.
+Для лучшей реализации кода можешь уточнять детали и задавать вопросы.
 ---
-description: Flutter conventions for Riverpod 3 and clean architecture layers
+description: Соглашения Flutter — Riverpod 3 и прагматичная слоистая архитектура
 alwaysApply: true
 ---
 
-# Riverpod 3 + Clean Architecture
+# Riverpod 3 + слои проекта
 
-This project uses three layers: `data`, `domain`, `presentation`.
+Проект разделён на три слоя: `data`, `domain`, `presentation`. Плюс `core` — общие утилиты, тема, расширения, сервисы без привязки к фиче.
 
-## Layer boundaries
+Это **упрощённая** clean architecture: соблюдаем направление зависимостей и разделение ответственности, но не усложняем ради «канона».
 
-- Keep entities, enums, and repository contracts in `lib/domain`.
-- Keep Firebase and other external implementations in `lib/data`.
-- Keep widgets, pages, and providers in `lib/presentation`.
-- `presentation` may depend on `domain` contracts and `presentation/providers`.
-- `data` may depend on `domain`, but `domain` must not depend on `data` or `presentation`.
-- Do not add a new architectural layer (for example `usecases`) unless explicitly requested.
+## Слои и границы
 
-## Riverpod 3 conventions
+- **domain** — сущности, enum'ы, контракты репозиториев (`abstract class …Repository`).
+- **data** — реализации репозиториев (Firebase и др.), модели для навигации/маршрутов (`data/models`).
+- **presentation** — страницы, виджеты, провайдеры Riverpod.
+- **core** — то, что используется в нескольких слоях (тема, роутер, notification service, extensions).
 
-- Use `ProviderScope` at app root.
-- Prefer `AsyncNotifier` + `AsyncNotifierProvider` for async feature state.
-- Keep repository injection inside providers, reading domain repository interfaces.
-- Keep provider names explicit and feature-scoped (`<feature>NotifierProvider`, `<feature>RepositoryProvider`).
-- Handle loading and errors with `AsyncValue` states instead of ad-hoc booleans.
+### Направление зависимостей
 
-## Import direction examples
+- `presentation` → `domain`, `presentation/providers`, при необходимости `core`.
+- `data` → `domain`, при необходимости `core`.
+- `domain` **не** импортирует `data` и `presentation`.
+
+### Что можно отступать от «чистой» архитектуры
+
+- **Сериализация в entity** — `fromJson` / `toJson` прямо в `domain/entities` допустимы. Отдельные DTO-модели в `data` не обязательны, если проект небольшой.
+- **Firebase-типы в entity** (например `Timestamp`) — ок, если так проще и не плодит лишние мапперы.
+- **Фабрики и хелперы в entity** — например `AuthUser.fromFirebase()` — нормально.
+- **Слой use cases** — не добавлять, пока явно не попросят. Логику фичи держим в `AsyncNotifier` или репозитории.
+- **`data/models`** — только когда нужны данные маршрута или формы, не дублируя entity без причины.
+
+## Riverpod 3
+
+- `ProviderScope` в корне приложения (`main.dart`).
+- Асинхронное состояние фичи — **`AsyncNotifier` + `AsyncNotifierProvider`** (при необходимости `.family`).
+- Репозитории инжектим через провайдеры; в notifier читаем **интерфейс** из `domain`, не конкретную реализацию из `data`.
+- Имена явные и по фиче: `authNotifierProvider`, `medicationNotifierProvider`, `medicationRepositoryProvider`.
+- Загрузка и ошибки — через **`AsyncValue`** (`loading` / `data` / `error`), а не разрозненные `bool isLoading`.
+
+## Примеры импортов
 
 ```dart
-// GOOD: presentation -> domain
+// OK: presentation → domain
 import '../../domain/repositories/medication_repository.dart';
 
-// GOOD: data -> domain
+// OK: data → domain
 import '../../domain/entities/medication.dart';
 
-// BAD: domain -> data
+// OK: entity с сериализацией — без отдельной модели
+class Medication {
+  Map<String, dynamic> toJson() => { /* … */ };
+}
+
+// Плохо: domain → data
 import '../../data/repositories/firebase_medication_repository.dart';
 ```
+
+## Общие принципы
+
+- Новый код кладём в существующий слой, не создаём лишних папок и абстракций «на будущее».
+- Перед крупным рефакторингом архитектуры — уточни у пользователя.
+- Следуй стилю соседних файлов: именование, структура провайдеров, оформление entity.

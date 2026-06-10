@@ -38,6 +38,7 @@ class _ShareMedicationsPageState extends ConsumerState<ShareMedicationsPage> {
   Widget build(BuildContext context) {
     final linkedUsers = ref.watch(linkedUsersProvider);
     final currentUserId = ref.watch(currentUserIdProvider);
+    final authUser = ref.watch(authNotifierProvider).value;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -45,6 +46,19 @@ class _ShareMedicationsPageState extends ConsumerState<ShareMedicationsPage> {
       body: SafeArea(
         child: linkedUsers.when(
           data: (users) {
+            final hasShareStatus = users.any(
+              (user) => user.linkType == UserLinkType.share,
+            );
+            final isRestricted =
+                authUser?.isAnonymous == true ||
+                authUser?.isWard == true ||
+                hasShareStatus;
+            if (isRestricted) {
+              return const Center(
+                child: Text('Для этого аккаунта функция поделиться недоступна'),
+              );
+            }
+
             final profiles = _buildShareableProfiles(currentUserId, users);
             if (profiles.isEmpty) {
               return const Center(
