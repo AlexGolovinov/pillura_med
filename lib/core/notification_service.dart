@@ -196,22 +196,52 @@ class NotificationService {
         await FirebaseFirestore.instance
             .collection('medications')
             .doc(med.id)
-            .set({'notificationIds': notificationIds}, SetOptions(merge: true));
+            .update({'notificationIds': notificationIds});
       }
     } catch (e) {
       log('Error scheduling notifications: $e');
     }
   }
 
-  /// Отменить все уведомления одного лекарства
-  static Future<void> cancelMedication(Medication med) async {
-    for (final id in med.notificationIds ?? []) {
-      await notifications.cancel(id);
-    }
-    await FirebaseFirestore.instance
+  /// Отменить все уведомления одного лекарства.
+  /// ID берутся из Firestore и дополнительно ищутся среди pending по payload.
+  static Future<void> cancelMedication(String medId) async {
+    final doc = await FirebaseFirestore.instance
         .collection('medications')
-        .doc(med.id)
-        .update({'notificationIds': []});
+        .doc(medId)
+        .get();
+
+    final storedIds = doc.data()?['notificationIds'] as List<dynamic>?;
+    final cancelledIds = <int>{};
+
+    for (final id in storedIds ?? const <dynamic>[]) {
+      final notificationId = id as int;
+      cancelledIds.add(notificationId);
+      await notifications.cancel(notificationId);
+    }
+
+    final pending = await notifications.pendingNotificationRequests();
+    for (final req in pending) {
+      final payload = req.payload;
+      if (payload == null) continue;
+      try {
+        final data = jsonDecode(payload) as Map<String, dynamic>;
+        if (data['medId'] == medId && cancelledIds.add(req.id)) {
+          await notifications.cancel(req.id);
+        }
+      } catch (_) {}
+    }
+
+    if (doc.exists) {
+      await FirebaseFirestore.instance
+          .collection('medications')
+          .doc(medId)
+          .update({'notificationIds': []});
+    }
+
+    log(
+      'Отменено уведомлений для $medId: ${cancelledIds.length}',
+    );
   }
 
   Future<void> foregroundNotificationHandler(

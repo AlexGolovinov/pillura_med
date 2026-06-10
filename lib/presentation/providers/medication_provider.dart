@@ -121,13 +121,16 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
   Future<void> edit(Medication med, Medication medOld) async {
     await _repo.edit(med, medOld);
 
+    final todaysIntakes = await _repo.getTodaysIntakes(med.id);
     final current = state.value ?? [];
+    final now = DateTime.now();
     final updatedList = current.map((group) {
       if (group.medication.id == med.id) {
-        return group.copyWith(medication: med);
+        return group.copyWith(medication: med, todaysIntakes: todaysIntakes);
       }
       return group;
     }).toList();
+    updatedList.sort((a, b) => compareMedicationGroups(a, b, now));
 
     state = AsyncValue.data(updatedList);
   }

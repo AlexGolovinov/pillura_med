@@ -48,19 +48,69 @@ class FirebaseMedicationRepository implements MedicationRepository {
 
   @override
   Future<void> edit(Medication medication, Medication oldMedication) async {
+    final scheduleChanged =
+        !listEquals(medication.intakeTime, oldMedication.intakeTime) ||
+        medication.repeatRule != oldMedication.repeatRule ||
+        medication.durationTaking != oldMedication.durationTaking;
+
+    if (scheduleChanged) {
+      log('Интервалы приёма изменились, обновляем записи приёма и уведомления');
+      await cancelNotificationsForMedication(medication.id);
+    }
+
+    final updateData = medication.toJson();
+    if (scheduleChanged) {
+      updateData['notificationIds'] = <int>[];
+    }
     await firestore
         .collection(medicationsCollection)
         .doc(medication.id)
-        .update(medication.toJson());
-    if (listEquals(medication.intakeTime, oldMedication.intakeTime) &&
-        medication.repeatRule == oldMedication.repeatRule &&
-        medication.durationTaking == oldMedication.durationTaking) {
+        .update(updateData);
+
+    if (!scheduleChanged) {
       log(
         'Интервалы приёма не изменились, пропускаем обновление расписания уведомлений',
       );
-    } else {
-      log(' Интервалы приёма изменились, обновляем расписание уведомлений');
+      return;
     }
+
+    final today = DateTime.now();
+    final startOfDay = DateTime(today.year, today.month, today.day);
+
+    final snapshot = await firestore
+        .collection(intakeRecordsCollection)
+        .where('medicationId', isEqualTo: medication.id)
+        .where(
+          'scheduledDateTime',
+          isGreaterThanOrEqualTo: startOfDay.toIso8601String(),
+        )
+        .get();
+
+    final deleteBatch = firestore.batch();
+    for (final doc in snapshot.docs) {
+      deleteBatch.delete(doc.reference);
+    }
+    await deleteBatch.commit();
+
+    final newRecords = getIntakeRecordsFromDate(medication, startOfDay);
+    if (newRecords.isEmpty) return;
+
+    final addBatch = firestore.batch();
+    final recordsWithIds = <IntakeRecord>[];
+    for (final record in newRecords) {
+      final docRef = firestore.collection(intakeRecordsCollection).doc();
+      final recordWithId = IntakeRecord(
+        id: docRef.id,
+        medicationId: record.medicationId,
+        isTaken: record.isTaken,
+        scheduledDateTime: record.scheduledDateTime,
+      );
+      recordsWithIds.add(recordWithId);
+      addBatch.set(docRef, recordWithId.toJson());
+    }
+    await addBatch.commit();
+
+    await NotificationService.scheduleMedication(recordsWithIds, medication);
   }
 
   @override
@@ -92,13 +142,7 @@ class FirebaseMedicationRepository implements MedicationRepository {
 
   @override
   Future<void> cancelNotificationsForMedication(String medId) async {
-    final doc = await firestore
-        .collection(medicationsCollection)
-        .doc(medId)
-        .get();
-    if (!doc.exists) return;
-    final med = Medication.fromJson(doc.data()!);
-    await NotificationService.cancelMedication(med);
+    await NotificationService.cancelMedication(medId);
   }
 
   @override
@@ -175,7 +219,27 @@ class FirebaseMedicationRepository implements MedicationRepository {
   }
 
   List<IntakeRecord> getTimeListFromInterval(Medication med) {
+    final startDate = DateTime(
+      med.startDate.year,
+      med.startDate.month,
+      med.startDate.day,
+    );
+    return getIntakeRecordsFromDate(med, startDate);
+  }
+
+  List<IntakeRecord> getIntakeRecordsFromDate(
+    Medication med,
+    DateTime fromDate,
+  ) {
     final intakeRecords = <IntakeRecord>[];
+    if (med.durationTaking == null) return intakeRecords;
+
+    final startDate = DateTime(
+      med.startDate.year,
+      med.startDate.month,
+      med.startDate.day,
+    );
+    final fromDateOnly = DateTime(fromDate.year, fromDate.month, fromDate.day);
     final int totalDays =
         med.durationTaking!.count *
         (med.durationTaking!.unit == CourseDurationUnit.day
@@ -185,7 +249,9 @@ class FirebaseMedicationRepository implements MedicationRepository {
             : 30);
 
     for (var i = 0; i < totalDays; i++) {
-      final currentDate = med.startDate.add(Duration(days: i));
+      final currentDate = startDate.add(Duration(days: i));
+      if (currentDate.isBefore(fromDateOnly)) continue;
+
       bool shouldAdd = false;
       switch (med.repeatRule.type) {
         case RepeatRuleType.everyDay:
@@ -195,7 +261,7 @@ class FirebaseMedicationRepository implements MedicationRepository {
           shouldAdd = i % 2 == 0;
           break;
         case RepeatRuleType.weekly:
-          final weekday = currentDate.weekday; // 1 (Mon) - 7 (Sun)
+          final weekday = currentDate.weekday;
           shouldAdd = med.repeatRule.weekdays!.any(
             (w) => w.isoIndex == weekday,
           );
@@ -204,18 +270,19 @@ class FirebaseMedicationRepository implements MedicationRepository {
       if (shouldAdd) {
         for (var j = 0; j < med.intakeTime.length; j++) {
           final date = DateTime(
-            med.startDate.year,
-            med.startDate.month,
-            med.startDate.day + i,
+            currentDate.year,
+            currentDate.month,
+            currentDate.day,
             med.intakeTime[j].hour,
             med.intakeTime[j].minute,
           );
-          final intakeRec = IntakeRecord(
-            medicationId: med.id,
-            isTaken: null,
-            scheduledDateTime: date,
+          intakeRecords.add(
+            IntakeRecord(
+              medicationId: med.id,
+              isTaken: null,
+              scheduledDateTime: date,
+            ),
           );
-          intakeRecords.add(intakeRec);
         }
       }
     }
