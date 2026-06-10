@@ -12,6 +12,7 @@ import 'package:pillura_med/data/models/add_medication_route_data.dart';
 import 'package:pillura_med/domain/enums/course_duration_unit.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/domain/enums/meal_relation.dart';
+import 'package:pillura_med/presentation/providers/auth_providers.dart';
 import 'package:pillura_med/presentation/providers/medication_provider.dart';
 import 'package:pillura_med/presentation/providers/repository_provider.dart';
 import 'package:pillura_med/presentation/widgets/dosage_widget.dart';
@@ -642,7 +643,8 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
     var didNavigate = false;
     updateSavingState(true);
     try {
-      await _saveMedicationForSelectedProfile();
+      final isSaved = await _saveMedicationForSelectedProfile();
+      if (!isSaved || !mounted) return;
       if (!mounted) return;
       didNavigate = true;
       context.pop();
@@ -657,13 +659,14 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
     }
   }
 
-  Future<void> _saveMedicationForSelectedProfile() async {
+  Future<bool> _saveMedicationForSelectedProfile() async {
     final currentUserId = ref.read(currentUserIdProvider);
     final targetUserId = widget.targetUserId ?? currentUserId;
-    if (targetUserId == null) return;
+    if (targetUserId == null) return false;
     final notifier = ref.read(
       medicationNotifierProvider(targetUserId).notifier,
     );
+    final currentUser = ref.read(authNotifierProvider).value;
 
     if (widget.mData != null) {
       final med = widget.mData!.medication.copyWith(
@@ -681,7 +684,24 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
       );
 
       await notifier.edit(med, widget.mData!.medication);
-      return;
+      return true;
+    }
+
+    if (currentUser?.isAnonymous == true) {
+      final repository = ref.read(medicationRepositoryByUserIdProvider(targetUserId));
+      final existingMedications = await repository.getAll();
+      if (existingMedications.length >= 4) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'В гостевом режиме можно добавить не больше 4 лекарств',
+              ),
+            ),
+          );
+        }
+        return false;
+      }
     }
 
     await notifier.add(
@@ -698,6 +718,7 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
       symptoms: _symptoms,
       color: _selectedColor?.toARGB32(),
     );
+    return true;
   }
 
   Widget colorPicker() {

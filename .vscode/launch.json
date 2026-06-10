@@ -10,6 +10,23 @@
             "type": "dart"
         },
         {
+            "name": "pillura_med (Chrome — телефон)",
+            "request": "launch",
+            "type": "dart",
+            "deviceId": "chrome",
+            "toolArgs": [
+                "--web-browser-flag=--window-size=390,844",
+                "--web-browser-flag=--window-position=80,40",
+                "--web-browser-flag=--force-device-scale-factor=2"
+            ]
+        },
+        {
+            "name": "pillura_med (Chrome — полный экран)",
+            "request": "launch",
+            "type": "dart",
+            "deviceId": "chrome"
+        },
+        {
             "name": "pillura_med (profile mode)",
             "request": "launch",
             "type": "dart",

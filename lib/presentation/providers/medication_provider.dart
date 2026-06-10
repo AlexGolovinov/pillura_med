@@ -105,11 +105,8 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
       updatedList.add(group);
     }
 
-    // 5. Если у нового лекарства есть приёмы на сегодня → добавляем группу
-    if (todaysIntakes.isNotEmpty) {
-      final newGroup = MedicationWithIntakes(medWithId, todaysIntakes);
-      updatedList.add(newGroup);
-    }
+    final newGroup = MedicationWithIntakes(medWithId, todaysIntakes);
+    updatedList.add(newGroup);
 
     // 6. Сортируем весь список по ближайшему предстоящему приёму
     final now = DateTime.now();
@@ -231,9 +228,7 @@ Future<List<MedicationWithIntakes>> _loadMedicationWithIntakes(
 
   for (final med in meds) {
     final intakes = await repository.getTodaysIntakes(med.id);
-    if (intakes.isNotEmpty) {
-      todayGroups.add(MedicationWithIntakes(med, intakes));
-    }
+    todayGroups.add(MedicationWithIntakes(med, intakes));
   }
 
   final now = DateTime.now();
@@ -248,6 +243,8 @@ int compareMedicationGroups(
   DateTime now,
 ) {
   int getGroupPriority(MedicationWithIntakes group) {
+    if (group.todaysIntakes.isEmpty) return 3;
+
     final hasNotTaken = group.todaysIntakes.any((i) => i.isTaken == null);
 
     if (hasNotTaken) return 0;
@@ -262,6 +259,10 @@ int compareMedicationGroups(
   }
 
   DateTime getReferenceTime(MedicationWithIntakes group) {
+    if (group.todaysIntakes.isEmpty) {
+      return group.medication.startDate;
+    }
+
     // ближайшее неотмеченное
     final notTaken =
         group.todaysIntakes.where((i) => i.isTaken == null).toList()

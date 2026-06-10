@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pillura_med/domain/entities/linked_user_access.dart';
+import 'package:pillura_med/domain/entities/user_link.dart';
+import 'package:pillura_med/presentation/providers/auth_providers.dart';
 
 /// Экран выбора: добавить по коду / подопечного (вкладка «Добавить»).
-class MenuAddPerson extends StatelessWidget {
+class MenuAddPerson extends ConsumerWidget {
   const MenuAddPerson({super.key});
 
   static const Color _brand = Color(0xFF202D85);
@@ -10,7 +14,25 @@ class MenuAddPerson extends StatelessWidget {
   static const Color _borderLight = Color(0xFFE5E5E5);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authUser = ref.watch(authNotifierProvider).value;
+    final List<LinkedUserAccess> linkedUsers = ref
+        .watch(linkedUsersProvider)
+        .maybeWhen(
+      data: (users) => users,
+      orElse: () => const <LinkedUserAccess>[],
+    );
+    final hasShareStatus = linkedUsers.any(
+      (user) => user.linkType == UserLinkType.share,
+    );
+    final isGuestMode = authUser?.isAnonymous == true;
+    final isWardAccount = authUser?.isWard == true;
+    final isRestricted = isGuestMode || isWardAccount || hasShareStatus;
+
+    final restrictedMessage = isGuestMode
+        ? 'В гостевом режиме доступны только лекарства (до 3 шт).'
+        : 'Для подопечных и пользователей с share-статусом это действие недоступно.';
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(title: const Text('Добавить'), centerTitle: true),
@@ -28,6 +50,12 @@ class MenuAddPerson extends StatelessWidget {
                 subtitle:
                     'У меня есть код / qr, которым со мной поделился другой человек',
                 onTap: () {
+                  if (isRestricted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(restrictedMessage)),
+                    );
+                    return;
+                  }
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
@@ -45,7 +73,15 @@ class MenuAddPerson extends StatelessWidget {
                 title: 'Подопечного',
                 subtitle:
                     'Я хочу добавить человека (или питомца) о котором буду заботиться',
-                onTap: () => context.push('/add/ward'),
+                onTap: () {
+                  if (isRestricted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(restrictedMessage)),
+                    );
+                    return;
+                  }
+                  context.push('/add/ward');
+                },
               ),
               const Spacer(),
             ],
