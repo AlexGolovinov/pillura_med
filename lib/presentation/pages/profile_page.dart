@@ -18,6 +18,9 @@ import '../../domain/entities/medication.dart';
 
 enum _MedicationListFilter { today, all }
 
+const _fabListBottomPadding =
+    kFloatingActionButtonMargin + kMinInteractiveDimension + 8;
+
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
 
@@ -177,7 +180,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           const SizedBox(height: 16),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(left: 8),
+              padding: EdgeInsets.only(
+                left: 8,
+                bottom: canEditSelectedProfile ? _fabListBottomPadding : 0,
+              ),
               child: medication.when(
               data: (data) {
                 final filteredData = _medicationFilter ==
@@ -436,36 +442,32 @@ class _MedicationFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const borderColor = Colors.blueGrey;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: DecoratedBox(
+      child: Container(
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(color: borderColor, width: 1),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: IntrinsicHeight(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _MedicationFilterTab(
-                    label: 'На сегодня',
-                    isSelected: selected == _MedicationListFilter.today,
-                    onTap: () => onChanged(_MedicationListFilter.today),
-                    showRightDivider: true,
-                  ),
-                ),
-                Expanded(
-                  child: _MedicationFilterTab(
-                    label: 'Все',
-                    isSelected: selected == _MedicationListFilter.all,
-                    onTap: () => onChanged(_MedicationListFilter.all),
-                  ),
-                ),
-              ],
+        child: Row(
+          children: [
+            Expanded(
+              child: _MedicationFilterTab(
+                label: 'На сегодня',
+                isSelected: selected == _MedicationListFilter.today,
+                onTap: () => onChanged(_MedicationListFilter.today),
+              ),
             ),
-          ),
+            Expanded(
+              child: _MedicationFilterTab(
+                label: 'Все',
+                isSelected: selected == _MedicationListFilter.all,
+                onTap: () => onChanged(_MedicationListFilter.all),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -477,28 +479,23 @@ class _MedicationFilterTab extends StatelessWidget {
     required this.label,
     required this.isSelected,
     required this.onTap,
-    this.showRightDivider = false,
   });
 
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
-  final bool showRightDivider;
 
   @override
   Widget build(BuildContext context) {
     return Material(
+      borderRadius: BorderRadius.circular(10),
       color: isSelected ? const Color(0xFFD7E4FA) : Colors.white,
       child: InkWell(
+        borderRadius: BorderRadius.circular(10),
         onTap: onTap,
         child: Container(
           height: 48,
           alignment: Alignment.center,
-          decoration: BoxDecoration(
-            border: showRightDivider
-                ? Border(right: BorderSide(color: Colors.grey.shade300))
-                : null,
-          ),
           child: Text(
             label,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
