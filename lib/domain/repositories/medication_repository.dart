@@ -14,4 +14,5 @@ abstract class MedicationRepository {
   Future<List<IntakeRecord>> getIntakeRecords(String medicationId);
   Future<List<IntakeRecord>> getTodaysIntakes(String medicationId);
   Future<IntakeRecord> getIntakeRecordById(String recordId);
+  Future<bool> hasRecordedIntakes(String medicationId);
 }

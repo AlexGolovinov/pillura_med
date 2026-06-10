@@ -47,6 +47,12 @@ class FirebaseMedicationRepository implements MedicationRepository {
   }
 
   @override
+  Future<bool> hasRecordedIntakes(String medicationId) async {
+    final records = await getIntakeRecords(medicationId);
+    return records.any((record) => record.isTaken != null);
+  }
+
+  @override
   Future<void> edit(Medication medication, Medication oldMedication) async {
     final scheduleChanged =
         !listEquals(medication.intakeTime, oldMedication.intakeTime) ||
@@ -54,6 +60,12 @@ class FirebaseMedicationRepository implements MedicationRepository {
         medication.durationTaking != oldMedication.durationTaking;
 
     if (scheduleChanged) {
+      final hasRecorded = await hasRecordedIntakes(medication.id);
+      if (hasRecorded) {
+        throw StateError(
+          'Уже были приёмы или пропуски — изменить расписание нельзя',
+        );
+      }
       log('Интервалы приёма изменились, обновляем записи приёма и уведомления');
       await cancelNotificationsForMedication(medication.id);
     }

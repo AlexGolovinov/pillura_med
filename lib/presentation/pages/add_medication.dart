@@ -1,5 +1,6 @@
 import 'dart:developer';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_switch/flutter_switch.dart';
@@ -67,6 +68,46 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
   bool switchWithBreak = false;
   int? selectedPicker;
   bool _isSavingMedication = false;
+  bool _scheduleLocked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.mData != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadScheduleLock());
+    }
+  }
+
+  Future<void> _loadScheduleLock() async {
+    final medicationId = widget.mData?.medication.id;
+    if (medicationId == null) return;
+
+    final currentUserId = ref.read(currentUserIdProvider);
+    final targetUserId = widget.targetUserId ?? currentUserId;
+    if (targetUserId == null) return;
+
+    final repository = ref.read(
+      medicationRepositoryByUserIdProvider(targetUserId),
+    );
+    final locked = await repository.hasRecordedIntakes(medicationId);
+    if (!mounted) return;
+    setState(() => _scheduleLocked = locked);
+  }
+
+  bool _isScheduleChanged(Medication updated, Medication original) {
+    return !listEquals(updated.intakeTime, original.intakeTime) ||
+        updated.repeatRule != original.repeatRule ||
+        updated.durationTaking != original.durationTaking;
+  }
+
+  Widget _scheduleLockedSection({required Widget child}) {
+    if (!_scheduleLocked) return child;
+
+    return Opacity(
+      opacity: 0.5,
+      child: IgnorePointer(child: child),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -137,17 +178,36 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                         _mealRelation = value;
                       },
                     ),
+                    if (_scheduleLocked) ...[
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color.fromARGB(255, 255, 243, 224),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.orange.shade300),
+                        ),
+                        child: Text(
+                          'По этому лекарству уже есть отметки о приёме или пропуске. '
+                          'Изменить интервал, время и длительность приёма нельзя.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
                     SizedBox(height: 24),
                     Text(
                       "Интервал приёма лекарства",
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     SizedBox(height: 8),
-                    IntervalWidget(
-                      interval: widget.mData?.medication.repeatRule,
-                      onSaved: (value) {
-                        _interval = value;
-                      },
+                    _scheduleLockedSection(
+                      child: IntervalWidget(
+                        interval: widget.mData?.medication.repeatRule,
+                        onSaved: (value) {
+                          _interval = value;
+                        },
+                      ),
                     ),
                     SizedBox(height: 24),
                     Text(
@@ -155,67 +215,84 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Text(
-                          'Ручной ввод',
-                          style: !switchAuto
-                              ? context.textTheme.bodyMedium?.copyWith(
-                                  color: context.colors.primary,
-                                  fontWeight: FontWeight.bold,
-                                )
-                              : null,
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(left: 8, right: 8),
-                          child: FlutterSwitch(
-                            height: 41,
-                            inactiveIcon: Icon(Icons.edit),
-                            inactiveColor: Color(0xFFE3E7FF),
-                            activeColor: Color(0xFFE3E7FF),
-                            activeIcon: Icon(Icons.computer),
-                            value: switchAuto,
-                            onToggle: (bool value) {
-                              setState(() {
-                                switchAuto = value;
-                              });
-                            },
+                    _scheduleLockedSection(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Ручной ввод',
+                                style: !switchAuto
+                                    ? context.textTheme.bodyMedium?.copyWith(
+                                        color: context.colors.primary,
+                                        fontWeight: FontWeight.bold,
+                                      )
+                                    : null,
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 8,
+                                  right: 8,
+                                ),
+                                child: FlutterSwitch(
+                                  height: 41,
+                                  inactiveIcon: Icon(Icons.edit),
+                                  inactiveColor: Color(0xFFE3E7FF),
+                                  activeColor: Color(0xFFE3E7FF),
+                                  activeIcon: Icon(Icons.computer),
+                                  value: switchAuto,
+                                  onToggle: (bool value) {
+                                    setState(() {
+                                      switchAuto = value;
+                                    });
+                                  },
+                                ),
+                              ),
+                              Text(
+                                'Автоматический рассчет',
+                                style: switchAuto
+                                    ? context.textTheme.bodyMedium?.copyWith(
+                                        color: context.colors.primary,
+                                        fontWeight: FontWeight.bold,
+                                      )
+                                    : null,
+                              ),
+                            ],
                           ),
-                        ),
-                        Text(
-                          'Автоматический рассчет',
-                          style: switchAuto
-                              ? context.textTheme.bodyMedium?.copyWith(
-                                  color: context.colors.primary,
-                                  fontWeight: FontWeight.bold,
+                          SizedBox(height: 8),
+                          switchAuto == false
+                              ? ManualIntakeWidget(
+                                  initialTimes:
+                                      widget.mData?.medication.intakeTime,
+                                  onSaved: (newValue) {
+                                    _intakeTimes = newValue!
+                                        .map((e) => e)
+                                        .toList();
+                                  },
                                 )
-                              : null,
-                        ),
-                      ],
+                              : AutomaticIntervalWidget(
+                                  onSaved: (newValue) {
+                                    _intakeTimes = newValue!
+                                        .map((e) => e)
+                                        .toList();
+                                  },
+                                ),
+                        ],
+                      ),
                     ),
-                    SizedBox(height: 8),
-                    switchAuto == false
-                        ? ManualIntakeWidget(
-                            initialTimes: widget.mData?.medication.intakeTime,
-                            onSaved: (newValue) {
-                              _intakeTimes = newValue!.map((e) => e).toList();
-                            },
-                          )
-                        : AutomaticIntervalWidget(
-                            onSaved: (newValue) {
-                              _intakeTimes = newValue!.map((e) => e).toList();
-                            },
-                          ),
 
                     SizedBox(height: 24),
-                    CourseDurationWidget(
-                      initialDuration: widget.mData?.medication.durationTaking,
-                      title: 'Длительность приема',
-                      withBreak: switchWithBreak,
-                      isRequired: true,
-                      onSaved: (courseIntake) {
-                        _durationTaking = courseIntake;
-                      },
+                    _scheduleLockedSection(
+                      child: CourseDurationWidget(
+                        initialDuration: widget.mData?.medication.durationTaking,
+                        title: 'Длительность приема',
+                        withBreak: switchWithBreak,
+                        isRequired: true,
+                        onSaved: (courseIntake) {
+                          _durationTaking = courseIntake;
+                        },
+                      ),
                     ),
                     SizedBox(height: 24),
                     ExpansionTile(
@@ -668,7 +745,8 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
     final currentUser = ref.read(authNotifierProvider).value;
 
     if (widget.mData != null) {
-      final med = widget.mData!.medication.copyWith(
+      final original = widget.mData!.medication;
+      final med = original.copyWith(
         name: _name!,
         dosage: _dosage!,
         dosageType: _dosageType!,
@@ -682,7 +760,24 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
         color: _selectedColor?.toARGB32(),
       );
 
-      await notifier.edit(med, widget.mData!.medication);
+      if (_scheduleLocked && _isScheduleChanged(med, original)) {
+        if (mounted) {
+          AppSnackBar.show(
+            context,
+            'Уже были приёмы или пропуски — изменить время нельзя',
+          );
+        }
+        return false;
+      }
+
+      try {
+        await notifier.edit(med, original);
+      } on StateError catch (e) {
+        if (mounted) {
+          AppSnackBar.show(context, e.message);
+        }
+        return false;
+      }
       return true;
     }
 
