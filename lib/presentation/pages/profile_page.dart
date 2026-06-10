@@ -180,10 +180,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           const SizedBox(height: 16),
           Expanded(
             child: Padding(
-              padding: EdgeInsets.only(
-                left: 8,
-                bottom: canEditSelectedProfile ? _fabListBottomPadding : 0,
-              ),
+              padding: const EdgeInsets.only(left: 8),
               child: medication.when(
               data: (data) {
                 final filteredData = _medicationFilter ==
@@ -211,6 +208,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     insertDuration: const Duration(milliseconds: 600),
                     removeDuration: const Duration(milliseconds: 400),
                     scrollDirection: Axis.vertical,
+                    padding: EdgeInsets.only(
+                      bottom: canEditSelectedProfile
+                          ? _fabListBottomPadding
+                          : 0,
+                    ),
                     itemBuilder: (context, animation, item, index) {
                       // Создаем анимацию смещения по аналогии с вашим примером
                       final slideAnimation = animation.drive(
@@ -440,67 +442,45 @@ class _MedicationFilterBar extends StatelessWidget {
   final _MedicationListFilter selected;
   final ValueChanged<_MedicationListFilter> onChanged;
 
+  static const _selectedBackground = Color(0xFFD7E4FA);
+
   @override
   Widget build(BuildContext context) {
-    const borderColor = Colors.blueGrey;
-
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: borderColor, width: 1),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: _MedicationFilterTab(
-                label: 'На сегодня',
-                isSelected: selected == _MedicationListFilter.today,
-                onTap: () => onChanged(_MedicationListFilter.today),
-              ),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: SizedBox(
+        width: double.infinity,
+        child: SegmentedButton<_MedicationListFilter>(
+          segments: const [
+            ButtonSegment(
+              value: _MedicationListFilter.today,
+              label: Text('На сегодня'),
             ),
-            Expanded(
-              child: _MedicationFilterTab(
-                label: 'Все',
-                isSelected: selected == _MedicationListFilter.all,
-                onTap: () => onChanged(_MedicationListFilter.all),
-              ),
+            ButtonSegment(
+              value: _MedicationListFilter.all,
+              label: Text('Все'),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MedicationFilterTab extends StatelessWidget {
-  const _MedicationFilterTab({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      borderRadius: BorderRadius.circular(10),
-      color: isSelected ? const Color(0xFFD7E4FA) : Colors.white,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: onTap,
-        child: Container(
-          height: 48,
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: isSelected ? Colors.indigo.shade700 : Colors.black87,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          selected: {selected},
+          onSelectionChanged: (selection) {
+            if (selection.isNotEmpty) {
+              onChanged(selection.first);
+            }
+          },
+          emptySelectionAllowed: false,
+          showSelectedIcon: false,
+          style: SegmentedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 48),
+            selectedBackgroundColor: _selectedBackground,
+            selectedForegroundColor: Colors.indigo.shade700,
+            foregroundColor: Colors.black87,
+            backgroundColor: Colors.white,
+            side: const BorderSide(color: Colors.blueGrey),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            textStyle: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w500,
             ),
           ),
         ),
