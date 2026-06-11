@@ -8,6 +8,7 @@ import 'package:pillura_med/data/models/share_medications_route_data.dart';
 import 'package:pillura_med/domain/entities/user_link.dart';
 import 'package:pillura_med/domain/enums/course_duration_unit.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
+import 'package:pillura_med/core/theme/profile_link_colors.dart';
 import 'package:pillura_med/presentation/providers/auth_providers.dart';
 import 'package:pillura_med/presentation/providers/medication_provider.dart';
 import 'package:pillura_med/presentation/providers/repository_provider.dart';
@@ -17,6 +18,8 @@ import '../../domain/entities/intake_rec/intake_record.dart';
 import '../../domain/entities/medication.dart';
 
 enum _MedicationListFilter { today, all }
+
+enum _ProfileCardKind { own, ward, share }
 
 const _fabListBottomPadding =
     kFloatingActionButtonMargin + kMinInteractiveDimension + 8;
@@ -161,8 +164,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     children: [
                       _QrUserCard(
                         title: 'Мой',
+                        kind: _ProfileCardKind.own,
                         isSelected: isOwnProfileSelected,
-                        showShareBadge: canManageSharing,
                         onTap: () {
                           setState(_resetSelectedProfile);
                         },
@@ -179,11 +182,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           padding: const EdgeInsets.only(right: 12),
                           child: _QrUserCard(
                             title: title,
+                            kind: isWard
+                                ? _ProfileCardKind.ward
+                                : _ProfileCardKind.share,
                             isSelected: _selectedLinkedUserId == user.uid,
-                            showShareBadge:
-                                canManageSharing &&
-                                isWard &&
-                                linkedUser.canEdit,
                             onTap: () {
                               setState(() {
                                 _selectedLinkedUserId = user.uid;
@@ -201,16 +203,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               },
               loading: () => _QrUserCard(
                 title: 'Мой',
+                kind: _ProfileCardKind.own,
                 isSelected: isOwnProfileSelected,
-                showShareBadge: canManageSharing,
                 onTap: () {
                   setState(_resetSelectedProfile);
                 },
               ),
               error: (_, __) => _QrUserCard(
                 title: 'Мой',
+                kind: _ProfileCardKind.own,
                 isSelected: isOwnProfileSelected,
-                showShareBadge: canManageSharing,
                 onTap: () {
                   setState(_resetSelectedProfile);
                 },
@@ -604,15 +606,61 @@ class _MedicationFilterBar extends StatelessWidget {
 class _QrUserCard extends StatelessWidget {
   const _QrUserCard({
     required this.title,
+    required this.kind,
     this.onTap,
     this.isSelected = false,
-    this.showShareBadge = false,
   });
 
   final String title;
+  final _ProfileCardKind kind;
   final VoidCallback? onTap;
   final bool isSelected;
-  final bool showShareBadge;
+
+  Color get _borderColor {
+    switch (kind) {
+      case _ProfileCardKind.own:
+        return isSelected
+            ? ProfileLinkColors.ownBorderSelected
+            : ProfileLinkColors.ownBorder;
+      case _ProfileCardKind.ward:
+        return isSelected
+            ? ProfileLinkColors.wardBorderSelected
+            : ProfileLinkColors.wardBorder;
+      case _ProfileCardKind.share:
+        return isSelected
+            ? ProfileLinkColors.shareBorderSelected
+            : ProfileLinkColors.shareBorder;
+    }
+  }
+
+  Color get _backgroundColor {
+    if (!isSelected) return Colors.white;
+    switch (kind) {
+      case _ProfileCardKind.own:
+        return ProfileLinkColors.ownProfileSelectedBg;
+      case _ProfileCardKind.ward:
+        return ProfileLinkColors.wardProfileSelectedBg;
+      case _ProfileCardKind.share:
+        return ProfileLinkColors.shareProfileSelectedBg;
+    }
+  }
+
+  Color get _iconColor {
+    switch (kind) {
+      case _ProfileCardKind.own:
+        return isSelected
+            ? ProfileLinkColors.ownBorderSelected
+            : ProfileLinkColors.ownIcon;
+      case _ProfileCardKind.ward:
+        return isSelected
+            ? ProfileLinkColors.wardBorderSelected
+            : ProfileLinkColors.wardIcon;
+      case _ProfileCardKind.share:
+        return isSelected
+            ? ProfileLinkColors.shareBorderSelected
+            : ProfileLinkColors.shareIcon;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -622,15 +670,15 @@ class _QrUserCard extends StatelessWidget {
         height: 92,
         width: 78,
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFD7E4FA) : Colors.white,
+          color: _backgroundColor,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected ? Colors.indigo.shade700 : Colors.indigo,
+            color: _borderColor,
             width: isSelected ? 2 : 1,
           ),
         ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -638,10 +686,14 @@ class _QrUserCard extends StatelessWidget {
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-            const Icon(Icons.person_outline_rounded, size: 35),
+            const SizedBox(height: 6),
+            Icon(Icons.person_outline_rounded, size: 32, color: _iconColor),
           ],
         ),
       ),
