@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pillura_med/core/notification_service.dart';
 import 'package:pillura_med/presentation/providers/repository_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/entities/course_duration.dart';
@@ -116,6 +118,7 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
     );
     // 7. Устанавливаем новое состояние
     state = AsyncValue.data(updatedList);
+    unawaited(NotificationService.triggerNotificationReconcile(ref));
   }
 
   Future<void> edit(Medication med, Medication medOld) async {
@@ -133,6 +136,7 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
     updatedList.sort((a, b) => compareMedicationGroups(a, b, now));
 
     state = AsyncValue.data(updatedList);
+    unawaited(NotificationService.triggerNotificationReconcile(ref));
   }
 
   Future<void> deleteMedication(String id) async {
@@ -141,6 +145,7 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
     );
     await _repo.cancelNotificationsForMedication(id);
     await _repo.delete(id);
+    unawaited(NotificationService.triggerNotificationReconcile(ref));
   }
 
   Future<void> updateIntakeTimeFromRecord(

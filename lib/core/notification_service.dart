@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:pillura_med/domain/enums/course_duration_unit.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/presentation/providers/medication_provider.dart';
 import 'package:pillura_med/presentation/providers/repository_provider.dart';
@@ -15,6 +17,8 @@ import '../domain/entities/medication.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../domain/entities/linked_user_access.dart';
+import '../domain/entities/user_link.dart';
 import '../presentation/providers/notification_provider.dart';
 import '../router/app_router.dart';
 
@@ -141,66 +145,201 @@ class NotificationService {
     }
   }
 
-  /// Запланировать уведомления для одного лекарства
-  static Future<void> scheduleMedication(
-    List<IntakeRecord> records,
-    Medication med,
-  ) async {
-    if (med.finishedAt) return;
-
-    final notificationIds = <int>[];
+  /// Пересобрать локальные alarm'ы для своего профиля и подопечных (ward).
+  static Future<void> reconcileNotifications({
+    required String currentUserId,
+    required List<String> wardUserIds,
+  }) async {
     try {
-      for (final rec in records) {
-        final date = rec.scheduledDateTime;
-        if (date.isBefore(DateTime.now())) continue;
-        final scheduledDate = tz.TZDateTime.from(date, tz.local);
-        log('Scheduled TZDateTime: $scheduledDate');
-        log('tz.local: ${tz.TZDateTime.now(tz.local)}');
-        final payloadData = jsonEncode({
-          'medId': med.id,
-          'intakeRecordId': rec.id,
-        });
-        final notificationId = await getNextNotificationId();
-        await notifications.zonedSchedule(
-          notificationId,
-          '${med.name} - ${med.dosage} ${med.dosageType.shortLabel}',
-          'Время принимать лекарство',
-          scheduledDate,
-          const NotificationDetails(
-            android: AndroidNotificationDetails(
-              'med_channel',
-              'Лекарства',
-              importance: Importance.max,
-              priority: Priority.max,
-              actions: <AndroidNotificationAction>[
-                AndroidNotificationAction(
-                  'action_take',
-                  'Принял',
-                  showsUserInterface: true,
-                ),
-                AndroidNotificationAction(
-                  'action_skip',
-                  'Пропустить',
-                  showsUserInterface: false,
-                ),
-              ],
-            ),
-            iOS: DarwinNotificationDetails(),
-          ),
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-          payload: payloadData,
-        );
-        notificationIds.add(notificationId);
-      }
-      if (notificationIds.isNotEmpty) {
-        await FirebaseFirestore.instance
+      final profileIds = {currentUserId, ...wardUserIds};
+      final now = DateTime.now();
+      final managedMeds = <Medication>[];
+
+      for (final profileId in profileIds) {
+        final snapshot = await _firestore
             .collection('medications')
-            .doc(med.id)
-            .update({'notificationIds': notificationIds});
+            .where('userId', isEqualTo: profileId)
+            .where('repeatRule.type')
+            .get();
+        for (final doc in snapshot.docs) {
+          try {
+            final data = doc.data();
+            final med = Medication.fromJson({...data, 'id': data['id'] ?? doc.id});
+            if (_isMedicationActiveForReminders(med, now)) {
+              managedMeds.add(med);
+            }
+          } catch (e) {
+            log('reconcile: пропуск лекарства ${doc.id}: $e');
+          }
+        }
       }
-    } catch (e) {
-      log('Error scheduling notifications: $e');
+
+      final requiredEntries =
+          <String, ({Medication med, IntakeRecord record})>{};
+
+      for (final med in managedMeds) {
+        final intakesSnapshot = await _firestore
+            .collection('intake_records')
+            .where('medicationId', isEqualTo: med.id)
+            .get();
+        for (final doc in intakesSnapshot.docs) {
+          final record = IntakeRecord.fromJson({...doc.data(), 'id': doc.id});
+          if (record.scheduledDateTime.isAfter(now) && record.isTaken == null) {
+            requiredEntries['${med.id}_${record.id}'] = (
+              med: med,
+              record: record,
+            );
+          }
+        }
+      }
+
+      final pending = await notifications.pendingNotificationRequests();
+      final pendingKeys = <String>{};
+      var cancelledCount = 0;
+
+      for (final req in pending) {
+        final payload = req.payload;
+        if (payload == null) continue;
+
+        Map<String, dynamic> data;
+        try {
+          data = jsonDecode(payload) as Map<String, dynamic>;
+        } catch (_) {
+          continue;
+        }
+
+        final medId = data['medId'] as String?;
+        final recordId = data['intakeRecordId'] as String?;
+        if (medId == null || recordId == null) continue;
+
+        final key = '${medId}_$recordId';
+        if (requiredEntries.containsKey(key)) {
+          if (pendingKeys.contains(key)) {
+            await notifications.cancel(req.id);
+            cancelledCount++;
+          } else {
+            pendingKeys.add(key);
+          }
+        } else {
+          await notifications.cancel(req.id);
+          cancelledCount++;
+        }
+      }
+
+      var scheduledCount = 0;
+      for (final entry in requiredEntries.entries) {
+        if (pendingKeys.contains(entry.key)) continue;
+        await _scheduleIntakeNotification(
+          med: entry.value.med,
+          record: entry.value.record,
+          isWard: entry.value.med.userId != currentUserId,
+        );
+        scheduledCount++;
+      }
+
+      log(
+        'reconcileNotifications: профилей=${profileIds.length} '
+        '(ward=${wardUserIds.length}), '
+        'активных лекарств=${managedMeds.length}, нужно=${requiredEntries.length}, '
+        'оставлено=${pendingKeys.length}, отменено=$cancelledCount, '
+        'запланировано=$scheduledCount',
+      );
+    } catch (e, st) {
+      log('reconcileNotifications error: $e\n$st');
     }
+  }
+
+  static bool _isMedicationActiveForReminders(Medication med, DateTime now) {
+    if (med.finishedAt) return false;
+    if (med.durationTaking == null) return true;
+
+    final startDate = DateTime(
+      med.startDate.year,
+      med.startDate.month,
+      med.startDate.day,
+    );
+    final totalDays =
+        med.durationTaking!.count *
+        (med.durationTaking!.unit == CourseDurationUnit.day
+            ? 1
+            : med.durationTaking!.unit == CourseDurationUnit.week
+            ? 7
+            : 30);
+    final courseEnd = startDate.add(Duration(days: totalDays - 1));
+    final today = DateTime(now.year, now.month, now.day);
+    return !courseEnd.isBefore(today);
+  }
+
+  /// Вызов reconcile для текущего пользователя и его ward-связей.
+  static Future<void> triggerNotificationReconcile(Ref ref) async {
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null || userId.isEmpty) return;
+
+    final repo = ref.read(authFRepositoryProvider);
+    final linkedResult = await repo.getLinkedUsersForUser(userId);
+    final linked = linkedResult.fold(
+      (_) => <LinkedUserAccess>[],
+      (users) => users,
+    );
+    final wardIds = linked
+        .where((link) => link.linkType == UserLinkType.ward)
+        .map((link) => link.user.uid)
+        .toList();
+
+    await reconcileNotifications(
+      currentUserId: userId,
+      wardUserIds: wardIds,
+    );
+  }
+
+  static Future<void> _scheduleIntakeNotification({
+    required Medication med,
+    required IntakeRecord record,
+    required bool isWard,
+  }) async {
+    if (record.id == null) return;
+
+    final scheduledDate = tz.TZDateTime.from(record.scheduledDateTime, tz.local);
+    final payloadData = jsonEncode({
+      'medId': med.id,
+      'intakeRecordId': record.id,
+    });
+    final notificationId = await getNextNotificationId();
+    final title =
+        '${med.name} - ${med.dosage} ${med.dosageType.shortLabel}';
+    final body = isWard
+        ? 'Подопечный: время принимать лекарство'
+        : 'Время принимать лекарство';
+
+    await notifications.zonedSchedule(
+      notificationId,
+      title,
+      body,
+      scheduledDate,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'med_channel',
+          'Лекарства',
+          importance: Importance.max,
+          priority: Priority.max,
+          actions: <AndroidNotificationAction>[
+            AndroidNotificationAction(
+              'action_take',
+              'Принял',
+              showsUserInterface: true,
+            ),
+            AndroidNotificationAction(
+              'action_skip',
+              'Пропустить',
+              showsUserInterface: false,
+            ),
+          ],
+        ),
+        iOS: DarwinNotificationDetails(),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      payload: payloadData,
+    );
   }
 
   /// Отменить все уведомления одного лекарства.
@@ -419,6 +558,12 @@ class NotificationService {
     );
   }
 
+  /// Отменить все запланированные уведомления (при выходе из аккаунта).
+  static Future<void> cancelAllScheduledNotifications() async {
+    await notifications.cancelAll();
+    log('cancelAllScheduledNotifications: все alarm сняты');
+  }
+
   static Future<void> checkPendingNotifications() async {
     final List<PendingNotificationRequest> pending = await notifications
         .pendingNotificationRequests();
@@ -430,12 +575,42 @@ class NotificationService {
       return;
     }
 
+    final dateFormat = DateFormat('dd.MM.yyyy HH:mm');
+
     for (final req in pending) {
       log('─' * 40);
       log('ID:          ${req.id}');
       log('Title:       ${req.title ?? "нет"}');
       log('Body:        ${req.body ?? "нет"}');
       log('Payload:     ${req.payload ?? "нет"}');
+      log('Когда:       ${await _scheduledTimeLabel(req.payload, dateFormat)}');
+    }
+  }
+
+  static Future<String> _scheduledTimeLabel(
+    String? payload,
+    DateFormat dateFormat,
+  ) async {
+    if (payload == null) return 'нет payload';
+
+    try {
+      final data = jsonDecode(payload) as Map<String, dynamic>;
+      final recordId = data['intakeRecordId'] as String?;
+      if (recordId == null) return 'нет intakeRecordId в payload';
+
+      final doc = await _firestore
+          .collection('intake_records')
+          .doc(recordId)
+          .get();
+      if (!doc.exists) return 'запись приёма не найдена';
+
+      final raw = doc.data()?['scheduledDateTime'];
+      if (raw is! String) return 'нет scheduledDateTime';
+
+      final scheduledAt = DateTime.parse(raw);
+      return dateFormat.format(scheduledAt);
+    } catch (e) {
+      return 'ошибка чтения времени: $e';
     }
   }
 }

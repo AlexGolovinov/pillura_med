@@ -140,12 +140,12 @@ final authNotifierProvider = AsyncNotifierProvider<AuthNotifier, AuthUser>(
 );
 
 final linkedUsersProvider = FutureProvider<List<LinkedUserAccess>>((ref) async {
-  final user = ref.watch(authNotifierProvider).value;
-  if (user == null || !user.isAuthenticated) {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null || userId.isEmpty) {
     return <LinkedUserAccess>[];
   }
 
   final repo = ref.read(authFRepositoryProvider);
-  final result = await repo.getLinkedUsersForUser(user.uid);
+  final result = await repo.getLinkedUsersForUser(userId);
   return result.fold((_) => <LinkedUserAccess>[], (users) => users);
 });

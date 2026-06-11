@@ -38,11 +38,10 @@ class FirebaseMedicationRepository implements MedicationRepository {
     final medWithId = medication.copyWith(id: docRef.id, userId: userId);
 
     await docRef.set(medWithId.toJson());
-    final records = await addIntakeRecord(medWithId);
+    await addIntakeRecord(medWithId);
     log(
       'addIntakeRecord добавлено в репозиторий:  (затрачено: ${DateTime.now().difference(t0).inMilliseconds} ms)',
     );
-    unawaited(NotificationService.scheduleMedication(records, medWithId));
     return docRef.id;
   }
 
@@ -121,8 +120,6 @@ class FirebaseMedicationRepository implements MedicationRepository {
       addBatch.set(docRef, recordWithId.toJson());
     }
     await addBatch.commit();
-
-    await NotificationService.scheduleMedication(recordsWithIds, medication);
   }
 
   @override

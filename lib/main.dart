@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -7,6 +9,8 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'core/theme/app_theme.dart';
+import 'domain/entities/linked_user_access.dart';
+import 'domain/entities/user_link.dart';
 import 'firebase_options.dart';
 import 'core/notification_service.dart';
 import 'presentation/providers/medication_provider.dart';
@@ -48,14 +52,35 @@ class AppRoot extends ConsumerStatefulWidget {
 class _AppRootState extends ConsumerState<AppRoot> {
   AppLifecycleListener? _listener;
 
+  Future<void> _reconcileNotificationAlarms() async {
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null || userId.isEmpty) return;
+
+    final repo = ref.read(authFRepositoryProvider);
+    final linkedResult = await repo.getLinkedUsersForUser(userId);
+    final linked = linkedResult.fold(
+      (_) => <LinkedUserAccess>[],
+      (users) => users,
+    );
+    final wardIds = linked
+        .where((link) => link.linkType == UserLinkType.ward)
+        .map((link) => link.user.uid)
+        .toList();
+
+    await NotificationService.reconcileNotifications(
+      currentUserId: userId,
+      wardUserIds: wardIds,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     // Отложим проверку разрешений, инициализацию уведомлений и синхронизацию
     // до первого кадра: это позволяет корректно показывать диалоги.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // Await permission check so subsequent initialization waits for user's choice
       await ref.read(notificationServiceProvider).init();
+      await _reconcileNotificationAlarms();
     });
 
     // Register lifecycle listener that uses the same ref
@@ -66,6 +91,7 @@ class _AppRootState extends ConsumerState<AppRoot> {
         ref
             .read(medicationNotifierProvider(userId).notifier)
             .syncTakenFromPrefs();
+        unawaited(_reconcileNotificationAlarms());
       },
     );
   }
@@ -78,6 +104,13 @@ class _AppRootState extends ConsumerState<AppRoot> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<String?>(currentUserIdProvider, (previous, next) {
+      if (next != null && next != previous) {
+        unawaited(_reconcileNotificationAlarms());
+      } else if (previous != null && next == null) {
+        unawaited(NotificationService.cancelAllScheduledNotifications());
+      }
+    });
     return const MyApp();
   }
 }
