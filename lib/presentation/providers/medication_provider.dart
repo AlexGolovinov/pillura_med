@@ -147,35 +147,37 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
     IntakeRecord record,
     bool isTaken,
   ) async {
-    try {
-      if (record.medicationId == null) return;
-      await _repo.updateIntakeTime(record, isTaken);
+    if (record.medicationId == null) return;
 
-      final current = state.value ?? [];
+    final previousState = state;
+    final current = state.value ?? [];
 
-      final updatedList = current.map((group) {
-        if (group.medication.id != record.medicationId) {
-          return group;
+    final updatedList = current.map((group) {
+      if (group.medication.id != record.medicationId) {
+        return group;
+      }
+
+      final updatedIntakes = group.todaysIntakes.map((intake) {
+        if (intake.scheduledDateTime.hour == record.scheduledDateTime.hour &&
+            intake.scheduledDateTime.minute ==
+                record.scheduledDateTime.minute) {
+          return intake.copyWith(
+            isTaken: isTaken,
+          );
         }
-
-        final updatedIntakes = group.todaysIntakes.map((intake) {
-          // Сравниваем по времени (лучше использовать == на DateTime, если есть секунды — можно округлить)
-          if (intake.scheduledDateTime.hour == record.scheduledDateTime.hour &&
-              intake.scheduledDateTime.minute ==
-                  record.scheduledDateTime.minute) {
-            return intake.copyWith(
-              isTaken: isTaken,
-            ); // ← если IntakeRecord тоже имеет copyWith
-          }
-          return intake;
-        }).toList();
-
-        return group.copyWith(todaysIntakes: updatedIntakes);
+        return intake;
       }).toList();
-      updatedList.sort((a, b) => compareMedicationGroups(a, b, DateTime.now()));
-      state = AsyncValue.data(updatedList);
+
+      return group.copyWith(todaysIntakes: updatedIntakes);
+    }).toList();
+    updatedList.sort((a, b) => compareMedicationGroups(a, b, DateTime.now()));
+    state = AsyncValue.data(updatedList);
+
+    try {
+      await _repo.updateIntakeTime(record, isTaken);
     } catch (e) {
       log('Error updating intake time from record: $e');
+      state = previousState;
     }
   }
 
