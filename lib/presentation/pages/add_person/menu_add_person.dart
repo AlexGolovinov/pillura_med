@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pillura_med/core/app_snackbar.dart';
-import 'package:pillura_med/domain/entities/linked_user_access.dart';
-import 'package:pillura_med/domain/entities/user_link.dart';
 import 'package:pillura_med/presentation/providers/auth_providers.dart';
 
 /// Экран выбора: добавить по коду / подопечного (вкладка «Добавить»).
@@ -17,22 +15,13 @@ class MenuAddPerson extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authUser = ref.watch(authNotifierProvider).value;
-    final List<LinkedUserAccess> linkedUsers = ref
-        .watch(linkedUsersProvider)
-        .maybeWhen(
-      data: (users) => users,
-      orElse: () => const <LinkedUserAccess>[],
-    );
-    final hasShareStatus = linkedUsers.any(
-      (user) => user.linkType == UserLinkType.share,
-    );
-    final isGuestMode = authUser?.isAnonymous == true;
-    final isWardAccount = authUser?.isWard == true;
-    final isRestricted = isGuestMode || isWardAccount || hasShareStatus;
 
+    final isGuestMode = authUser?.isAnonymous == true;
+    final isRestricted = isGuestMode || authUser?.isWard == true;
     final restrictedMessage = isGuestMode
-        ? 'В гостевом режиме доступны только лекарства (до 4 шт).'
-        : 'Для подопечных и пользователей с share-статусом это действие недоступно.';
+        ? 'Войдите в аккаунт с email, чтобы добавлять или принимать приглашения'
+        : 'Это действие сейчас недоступно';
+
 
     return Scaffold(
       backgroundColor: Colors.white,

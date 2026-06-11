@@ -42,6 +42,32 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _selectedLinkedUserType = null;
   }
 
+  String? _shareUnavailableReason({
+    required bool isGuestMode,
+    required bool isWardAccount,
+    required bool hasShareStatus,
+    required bool isOwnProfileSelected,
+    required bool canEditSelectedProfile,
+    required UserLinkType? selectedLinkType,
+  }) {
+    if (isGuestMode) {
+      return 'Войдите в аккаунт с email, чтобы делиться списком лекарств';
+    }
+    if (isWardAccount) {
+      return 'Аккаунт подопечного не может делиться списком';
+    }
+    if (hasShareStatus) {
+      return 'Недоступно: у вас только просмотр чужого профиля';
+    }
+    if (!isOwnProfileSelected && selectedLinkType == UserLinkType.share) {
+      return 'Чужим профилем по доступу поделиться нельзя';
+    }
+    if (!isOwnProfileSelected && !canEditSelectedProfile) {
+      return 'Нет прав делиться этим профилем';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<String?>(currentUserIdProvider, (previous, next) {
@@ -73,6 +99,31 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         ? 'Мои лекарства'
         : 'Лекарства ${_selectedLinkedUserName ?? ''}';
 
+    final shareButtonLabel = isOwnProfileSelected
+        ? 'Поделиться моими лекарствами'
+        : 'Поделиться лекарствами ${_selectedLinkedUserName ?? ''}';
+
+    void openSharePage() {
+      if (selectedUserId == null) return;
+      context.push(
+        '/shareMedications',
+        extra: ShareMedicationsRouteData(initialUserId: selectedUserId),
+      );
+    }
+
+    final shareUnavailableReason = _shareUnavailableReason(
+      isGuestMode: isGuestMode,
+      isWardAccount: isWardAccount,
+      hasShareStatus: hasShareStatus,
+      isOwnProfileSelected: isOwnProfileSelected,
+      canEditSelectedProfile: canEditSelectedProfile,
+      selectedLinkType: _selectedLinkedUserType,
+    );
+    final showShareButton =
+        canShareSelectedProfile &&
+        selectedUserId != null &&
+        shareUnavailableReason == null;
+
     final AsyncValue<List<MedicationWithIntakes>> medication =
         selectedUserId == null
         ? const AsyncValue.loading()
@@ -83,15 +134,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         title: const Text('Профиль'),
         centerTitle: false,
         actions: [
-          if (canShareSelectedProfile && selectedUserId != null)
+          if (showShareButton)
             IconButton(
               tooltip: 'Поделиться',
-              onPressed: () {
-                context.push(
-                  '/shareMedications',
-                  extra: ShareMedicationsRouteData(initialUserId: selectedUserId),
-                );
-              },
+              onPressed: openSharePage,
               icon: const Icon(Icons.ios_share_rounded),
             ),
           TextButton.icon(
@@ -104,6 +150,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          
           Padding(
             padding: const EdgeInsets.only(left: 8),
             child: linkedUsers.when(
@@ -115,6 +162,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       _QrUserCard(
                         title: 'Мой',
                         isSelected: isOwnProfileSelected,
+                        showShareBadge: canManageSharing,
                         onTap: () {
                           setState(_resetSelectedProfile);
                         },
@@ -126,11 +174,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         if (title.isEmpty) {
                           return const SizedBox.shrink();
                         }
+                        final isWard = linkedUser.linkType == UserLinkType.ward;
                         return Padding(
                           padding: const EdgeInsets.only(right: 12),
                           child: _QrUserCard(
                             title: title,
                             isSelected: _selectedLinkedUserId == user.uid,
+                            showShareBadge:
+                                canManageSharing &&
+                                isWard &&
+                                linkedUser.canEdit,
                             onTap: () {
                               setState(() {
                                 _selectedLinkedUserId = user.uid;
@@ -149,6 +202,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               loading: () => _QrUserCard(
                 title: 'Мой',
                 isSelected: isOwnProfileSelected,
+                showShareBadge: canManageSharing,
                 onTap: () {
                   setState(_resetSelectedProfile);
                 },
@@ -156,13 +210,71 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               error: (_, __) => _QrUserCard(
                 title: 'Мой',
                 isSelected: isOwnProfileSelected,
+                showShareBadge: canManageSharing,
                 onTap: () {
                   setState(_resetSelectedProfile);
                 },
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: SizedBox(
+              width: double.infinity,
+              child: showShareButton
+                  ? OutlinedButton.icon(
+                      onPressed: openSharePage,
+                      icon: const Icon(Icons.ios_share_rounded, size: 20),
+                      label: Text(shareButtonLabel),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.indigo.shade800,
+                        side: BorderSide(color: Colors.indigo.shade300),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    )
+                  : OutlinedButton.icon(
+                      onPressed: null,
+                      icon: Icon(
+                        Icons.ios_share_rounded,
+                        size: 20,
+                        color: Colors.grey.shade500,
+                      ),
+                      label: Text(
+                        isOwnProfileSelected
+                            ? 'Поделиться моими лекарствами'
+                            : 'Поделиться лекарствами',
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.grey.shade300),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+            ),
+          ),
+          if (showShareButton)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+              child: Text(
+                'Другой человек сможет видеть список лекарств по QR-коду или ссылке',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.black54,
+                ),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+              child: Text(
+                shareUnavailableReason ??
+                    'Поделиться можно своим профилем или подопечным',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.black54,
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.only(left: 8),
             child: Center(
@@ -172,12 +284,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           _MedicationFilterBar(
             selected: _medicationFilter,
             onChanged: (filter) => setState(() => _medicationFilter = filter),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(left: 8),
@@ -490,11 +602,17 @@ class _MedicationFilterBar extends StatelessWidget {
 }
 
 class _QrUserCard extends StatelessWidget {
-  const _QrUserCard({required this.title, this.onTap, this.isSelected = false});
+  const _QrUserCard({
+    required this.title,
+    this.onTap,
+    this.isSelected = false,
+    this.showShareBadge = false,
+  });
 
   final String title;
   final VoidCallback? onTap;
   final bool isSelected;
+  final bool showShareBadge;
 
   @override
   Widget build(BuildContext context) {
