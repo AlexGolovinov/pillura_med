@@ -334,15 +334,36 @@ class FirebaseAuthRepository implements AuthRepository {
     String password,
     String name,
   ) async {
-    final cred = await _firebaseAuth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-    final user = cred.user;
-    return (await getOrCreateUser(
-      user,
-      name: name,
-    )).fold((l) => left(l), (r) => right(r));
+    try {
+      final cred = await _firebaseAuth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      final user = cred.user;
+      if (user == null) {
+        return left(Exception('Не удалось создать пользователя'));
+      }
+
+      final normalizedName = name.trim();
+      final authUser = AuthUser(
+        uid: user.uid,
+        email: user.email,
+        name: normalizedName,
+        isAnonymous: false,
+        isAuthenticated: true,
+      );
+
+      // authStateChanges может успеть создать users/{uid} с именем "Аноним".
+      // При регистрации явно перезаписываем профиль данными из формы.
+      await _firestore
+          .collection('users')
+          .doc(authUser.uid)
+          .set(authUser.toJson(), SetOptions(merge: true));
+
+      return right(authUser);
+    } catch (e) {
+      return left(e);
+    }
   }
 
   @override
@@ -351,37 +372,42 @@ class FirebaseAuthRepository implements AuthRepository {
     return right(null);
   }
 
+  @override
   Future<Either<dynamic, AuthUser?>> upgradeAnonymousAccount(
     String email,
     String password,
     String name,
   ) async {
-    final user = _firebaseAuth.currentUser;
-    if (user == null || !user.isAnonymous) {
-      throw Exception("Нет анонимного пользователя для апгрейда");
+    try {
+      final user = _firebaseAuth.currentUser;
+      if (user == null || !user.isAnonymous) {
+        return left(Exception('Нет гостевого аккаунта для привязки'));
+      }
+
+      final credential = fb.EmailAuthProvider.credential(
+        email: email,
+        password: password,
+      );
+
+      final cred = await user.linkWithCredential(credential);
+
+      final authUser = AuthUser(
+        uid: cred.user!.uid,
+        email: email,
+        name: name,
+        isAnonymous: false,
+        isAuthenticated: true,
+      );
+
+      await _firestore
+          .collection('users')
+          .doc(authUser.uid)
+          .set(authUser.toJson(), SetOptions(merge: true));
+
+      return right(authUser);
+    } catch (e) {
+      return left(e);
     }
-
-    final credential = fb.EmailAuthProvider.credential(
-      email: email,
-      password: password,
-    );
-
-    final cred = await user.linkWithCredential(credential);
-
-    final authUser = AuthUser(
-      uid: cred.user!.uid,
-      email: email,
-      name: name,
-      isAnonymous: false,
-      isAuthenticated: true,
-    );
-
-    await _firestore
-        .collection('users')
-        .doc(authUser.uid)
-        .set(authUser.toJson());
-
-    return right(authUser);
   }
 
   Future<Either<dynamic, AuthUser>> getOrCreateUser(

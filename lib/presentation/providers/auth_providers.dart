@@ -100,16 +100,56 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
     String name,
   ) async {
     state = const AsyncValue.loading();
-    try {
-      final user = await _repo.registerWithEmail(email, password, name);
-      return user.fold(
-        (l) => AuthUser(uid: '', isAuthenticated: false, isAnonymous: false),
-        (r) => r!,
-      );
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
+    final user = await _repo.registerWithEmail(email, password, name);
+    return user.fold((l) {
+      if (l is FirebaseAuthException) {
+        final userMessage = switch (l.code) {
+          'email-already-in-use' =>
+            'Этот email уже используется. Войдите в существующий аккаунт.',
+          'invalid-email' => 'Некорректный email',
+          'weak-password' => 'Пароль слишком простой. Минимум 6 символов.',
+          _ => 'Ошибка регистрации: ${l.message ?? 'неизвестная ошибка'}',
+        };
+        state = AsyncError(userMessage, StackTrace.current);
+      } else {
+        state = AsyncError(l, StackTrace.current);
+      }
       return AuthUser(uid: '', isAuthenticated: false, isAnonymous: false);
-    }
+    }, (r) {
+      final authUser =
+          r ?? AuthUser(uid: '', isAuthenticated: false, isAnonymous: false);
+      state = AsyncValue.data(authUser);
+      return authUser;
+    });
+  }
+
+  Future<void> upgradeAnonymousAccount(
+    String email,
+    String password,
+    String name,
+  ) async {
+    state = const AsyncValue.loading();
+    final result = await _repo.upgradeAnonymousAccount(email, password, name);
+    result.fold((l) {
+      if (l is FirebaseAuthException) {
+        final userMessage = switch (l.code) {
+          'email-already-in-use' =>
+            'Этот email уже используется. Войдите в существующий аккаунт.',
+          'invalid-email' => 'Некорректный email',
+          'weak-password' => 'Пароль слишком простой. Минимум 6 символов.',
+          'credential-already-in-use' =>
+            'Этот email уже привязан к другому способу входа.',
+          _ => 'Ошибка регистрации: ${l.message ?? 'неизвестная ошибка'}',
+        };
+        state = AsyncError(userMessage, StackTrace.current);
+        return;
+      }
+      state = AsyncError(l, StackTrace.current);
+    }, (user) {
+      if (user != null) {
+        state = AsyncValue.data(user);
+      }
+    });
   }
 
   Future<void> signOut() async {

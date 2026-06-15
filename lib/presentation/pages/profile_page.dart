@@ -144,9 +144,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               icon: const Icon(Icons.ios_share_rounded),
             ),
           TextButton.icon(
-            onPressed: () => context.push('/welcomePage'),
-            icon: const Icon(Icons.person_2),
-            label: const Text('Me'),
+            onPressed: () => context.push('/account'),
+            icon: const Icon(Icons.person_2_outlined),
+            label: const Text('Аккаунт'),
           ),
         ],
       ),

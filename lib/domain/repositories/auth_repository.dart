@@ -12,6 +12,11 @@ abstract class AuthRepository {
     String password,
     String name,
   );
+  Future<Either<dynamic, AuthUser?>> upgradeAnonymousAccount(
+    String email,
+    String password,
+    String name,
+  );
   Future<Either<dynamic, AuthUser?>> signInWithEmail(
     String email,
     String password,

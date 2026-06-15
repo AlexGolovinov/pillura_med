@@ -7,6 +7,12 @@ class InputBlock extends StatelessWidget {
   final String? initStateTitle;
   final String? Function(String?)? validator;
   final void Function(String?)? onSaved;
+  final bool obscureText;
+  final FocusNode? focusNode;
+  final TextInputAction? textInputAction;
+  final void Function(String)? onFieldSubmitted;
+  final void Function(String)? onChanged;
+  final VoidCallback? onToggleObscure;
 
   const InputBlock({
     super.key,
@@ -16,6 +22,12 @@ class InputBlock extends StatelessWidget {
     this.initStateTitle,
     this.validator,
     this.onSaved,
+    this.obscureText = false,
+    this.focusNode,
+    this.textInputAction,
+    this.onFieldSubmitted,
+    this.onChanged,
+    this.onToggleObscure,
   });
 
   @override
@@ -27,11 +39,26 @@ class InputBlock extends StatelessWidget {
         SizedBox(height: 8),
         TextFormField(
           initialValue: initStateTitle,
+          focusNode: focusNode,
+          textInputAction: textInputAction,
+          onFieldSubmitted: onFieldSubmitted,
+          onChanged: onChanged,
           decoration: InputDecoration(
             hintText: hintText,
             errorStyle: TextStyle(fontSize: 13),
+            suffixIcon: onToggleObscure == null
+                ? null
+                : IconButton(
+                    onPressed: onToggleObscure,
+                    icon: Icon(
+                      obscureText
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                    ),
+                  ),
           ),
           keyboardType: keyboardType,
+          obscureText: obscureText,
           autovalidateMode: AutovalidateMode.onUserInteraction,
           validator: validator,
 
