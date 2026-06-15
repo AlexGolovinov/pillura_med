@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pillura_med/core/listen_errors.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
 
 import '../providers/auth_providers.dart';
@@ -26,6 +27,8 @@ class _AccountPageState extends ConsumerState<AccountPage> {
   String _passwordInput = '';
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isSubmitting = false;
+  bool _isSigningOut = false;
 
   @override
   void dispose() {
@@ -44,16 +47,33 @@ class _AccountPageState extends ConsumerState<AccountPage> {
     if (!_formKey.currentState!.validate()) return;
     _formKey.currentState!.save();
 
-    await ref.read(authNotifierProvider.notifier).upgradeAnonymousAccount(
-          _email!.trim(),
-          _password!.trim(),
-          _name!.trim(),
-        );
+    setState(() => _isSubmitting = true);
+    try {
+      await ref.read(authNotifierProvider.notifier).upgradeAnonymousAccount(
+            _email!.trim(),
+            _password!.trim(),
+            _name!.trim(),
+          );
+      if (!mounted) return;
+      final authUser = ref.read(authNotifierProvider).value;
+      if (authUser != null &&
+          authUser.isAuthenticated &&
+          !authUser.isAnonymous) {
+        _showMessage('Аккаунт сохранён. Ваши данные остались с вами.');
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   Future<void> _signOut() async {
-    await ref.read(authNotifierProvider.notifier).signOut();
-    if (mounted) context.go('/welcomePage');
+    setState(() => _isSigningOut = true);
+    try {
+      await ref.read(authNotifierProvider.notifier).signOut();
+      if (mounted) context.go('/welcomePage');
+    } finally {
+      if (mounted) setState(() => _isSigningOut = false);
+    }
   }
 
   void _showMessage(String message) {
@@ -64,35 +84,23 @@ class _AccountPageState extends ConsumerState<AccountPage> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authNotifierProvider);
-    final isLoading = authState.isLoading;
+    final user = ref.watch(authNotifierProvider).value;
 
-    ref.listen(authNotifierProvider, (previous, next) {
-      next.whenOrNull(
-        data: (user) {
-          if (user.isAuthenticated &&
-              !user.isAnonymous &&
-              previous?.value?.isAnonymous == true &&
-              context.mounted) {
-            _showMessage('Аккаунт сохранён. Ваши данные остались с вами.');
-          }
-        },
-        error: (error, _) {
-          if (context.mounted) {
-            _showMessage(error.toString());
-          }
-        },
+    listenErrors(context, ref, authNotifierProvider);
+
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Мой аккаунт')),
+        body: const Center(child: CircularProgressIndicator()),
       );
-    });
+    }
 
-    return authState.when(
-      data: (user) {
-        final isGuest = user.isAnonymous;
-        final displayName = (user.name ?? '').trim().isNotEmpty
-            ? user.name!.trim()
-            : (isGuest ? 'Гость' : 'Пользователь');
+    final isGuest = user.isAnonymous;
+    final displayName = (user.name ?? '').trim().isNotEmpty
+        ? user.name!.trim()
+        : (isGuest ? 'Гость' : 'Пользователь');
 
-        return Scaffold(
+    return Scaffold(
           appBar: AppBar(
             title: const Text('Мой аккаунт'),
           ),
@@ -246,10 +254,23 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                                 ),
                                 const SizedBox(height: 20),
                                 ElevatedButton(
-                                  onPressed: isLoading ? null : _upgradeGuestAccount,
-                                  child: const Text(
-                                    'Зарегистрироваться и сохранить данные',
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _brandColor,
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size.fromHeight(55),
+                                    alignment: Alignment.center,
                                   ),
+                                  onPressed: _isSubmitting ? null : _upgradeGuestAccount,
+                                  child: _isSubmitting
+                                      ? const SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : const Text(
+                                          'Зарегистрироваться и сохранить данные',
+                                          textAlign: TextAlign.center,
+                                        ),
                                 ),
                               ],
                             ),
@@ -261,8 +282,8 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                  child: TextButton.icon(
-                    onPressed: isLoading ? null : _signOut,
+                  child: OutlinedButton.icon(
+                    onPressed: _isSigningOut || _isSubmitting ? null : _signOut,
                     icon: const Icon(Icons.logout_rounded, color: Colors.red),
                     label: const Text(
                       'Выйти',
@@ -274,14 +295,5 @@ class _AccountPageState extends ConsumerState<AccountPage> {
             ),
           ),
         );
-      },
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
-      error: (err, _) => Scaffold(
-        appBar: AppBar(title: const Text('Мой аккаунт')),
-        body: Center(child: Text('Ошибка: $err')),
-      ),
-    );
   }
 }

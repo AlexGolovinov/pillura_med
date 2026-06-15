@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pillura_med/core/listen_errors.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
 
 import '../../providers/auth_providers.dart';
@@ -22,6 +23,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   String? _email;
   String? _password;
   bool _obscurePassword = true;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -42,10 +44,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (!_formKey.currentState!.validate()) return;
     _formKey.currentState!.save();
 
-    await ref.read(authNotifierProvider.notifier).signInWithEmail(
-          _email!.trim(),
-          _password!.trim(),
-        );
+    setState(() => _isSubmitting = true);
+    try {
+      await ref.read(authNotifierProvider.notifier).signInWithEmail(
+            _email!.trim(),
+            _password!.trim(),
+          );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   void _showMessage(String message) {
@@ -56,23 +63,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authNotifierProvider);
-    final isLoading = authState.isLoading;
-
-    ref.listen(authNotifierProvider, (previous, next) {
-      next.whenOrNull(
-        data: (user) {
-          if (user.isAuthenticated && context.mounted) {
-            context.go('/profilePage');
-          }
-        },
-        error: (error, _) {
-          if (context.mounted) {
-            _showMessage(error.toString());
-          }
-        },
-      );
-    });
+    listenErrors(context, ref, authNotifierProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -138,14 +129,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: isLoading ? null : _submit,
-                  child: const Text('Войти'),
+                  onPressed: _isSubmitting ? null : _submit,
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Войти'),
                 ),
                 const SizedBox(height: 28),
                 const _OrDivider(),
                 const SizedBox(height: 28),
                 OutlinedButton.icon(
-                  onPressed: isLoading
+                  onPressed: _isSubmitting
                       ? null
                       : () => _showMessage(
                             'Вход через Google скоро будет доступен',
@@ -165,10 +162,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                   ),
                 ),
-                if (isLoading) ...[
-                  const SizedBox(height: 24),
-                  const Center(child: CircularProgressIndicator()),
-                ],
               ],
             ),
           ),

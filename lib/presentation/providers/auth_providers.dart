@@ -13,6 +13,24 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
   late final AuthRepository _repo;
   StreamSubscription? _authSubscription;
 
+  static final _unauthenticated = AuthUser(
+    uid: '',
+    isAuthenticated: false,
+    isAnonymous: false,
+  );
+
+  /// Показывает ошибку слушателям (listenErrors), затем восстанавливает data,
+  /// чтобы экраны с authState.when не застревали в error.
+  void _setTransientError(Object error) {
+    final previous = state.value ?? _unauthenticated;
+    state = AsyncError(error, StackTrace.current);
+    Future.microtask(() {
+      if (state.hasError) {
+        state = AsyncValue.data(previous);
+      }
+    });
+  }
+
   @override
   Future<AuthUser> build() async {
     _repo = ref.read(authFRepositoryProvider);
@@ -60,7 +78,6 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
   }
 
   Future<void> signInWithEmail(String email, String password) async {
-    state = const AsyncValue.loading();
     final user = await _repo.signInWithEmail(email, password);
     user.fold((l) {
       if (l is FirebaseAuthException) {
@@ -86,10 +103,10 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
           default:
             userMessage = 'Ошибка входа: ${l.message ?? 'неизвестная ошибка'}';
         }
-        state = AsyncError(userMessage, StackTrace.current);
+        _setTransientError(userMessage);
         return;
       }
-      state = AsyncError(l, StackTrace.current);
+      _setTransientError(l);
     }, (_) {});
     //AsyncValue.data(user.fold((l) => null, (r) => r));
   }
@@ -99,7 +116,6 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
     String password,
     String name,
   ) async {
-    state = const AsyncValue.loading();
     final user = await _repo.registerWithEmail(email, password, name);
     return user.fold((l) {
       if (l is FirebaseAuthException) {
@@ -110,9 +126,9 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
           'weak-password' => 'Пароль слишком простой. Минимум 6 символов.',
           _ => 'Ошибка регистрации: ${l.message ?? 'неизвестная ошибка'}',
         };
-        state = AsyncError(userMessage, StackTrace.current);
+        _setTransientError(userMessage);
       } else {
-        state = AsyncError(l, StackTrace.current);
+        _setTransientError(l);
       }
       return AuthUser(uid: '', isAuthenticated: false, isAnonymous: false);
     }, (r) {
@@ -128,7 +144,6 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
     String password,
     String name,
   ) async {
-    state = const AsyncValue.loading();
     final result = await _repo.upgradeAnonymousAccount(email, password, name);
     result.fold((l) {
       if (l is FirebaseAuthException) {
@@ -141,10 +156,10 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
             'Этот email уже привязан к другому способу входа.',
           _ => 'Ошибка регистрации: ${l.message ?? 'неизвестная ошибка'}',
         };
-        state = AsyncError(userMessage, StackTrace.current);
+        _setTransientError(userMessage);
         return;
       }
-      state = AsyncError(l, StackTrace.current);
+      _setTransientError(l);
     }, (user) {
       if (user != null) {
         state = AsyncValue.data(user);
@@ -153,10 +168,9 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
   }
 
   Future<void> signOut() async {
-    state = const AsyncValue.loading();
     final result = await _repo.signOut();
     result.fold(
-      (error) => state = AsyncValue.error(error, StackTrace.current),
+      (error) => _setTransientError(error),
       (_) {},
     );
   }

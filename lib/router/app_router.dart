@@ -23,12 +23,23 @@ import 'package:pillura_med/router/scaffold_with_navbar.dart';
 // Глобальный ключ навигации — создаётся один раз
 final navigatorKey = GlobalKey<NavigatorState>(debugLabel: 'go_router_key');
 
+/// Пересчитывает redirect без пересоздания GoRouter при смене auth.
+class _RouterRefreshListenable extends ChangeNotifier {
+  _RouterRefreshListenable(Ref ref) {
+    ref.listen(authNotifierProvider, (_, __) => notifyListeners());
+  }
+}
+
 final goRouterProvider = Provider<GoRouter>((ref) {
+  final refreshListenable = _RouterRefreshListenable(ref);
+  ref.onDispose(refreshListenable.dispose);
+
   return GoRouter(
     navigatorKey: navigatorKey,
     initialLocation: '/landing',
+    refreshListenable: refreshListenable,
     redirect: (context, state) {
-      final authState = ref.watch(authNotifierProvider).value;
+      final authState = ref.read(authNotifierProvider).value;
 
       if (authState == null) {
         // loading или error → ничего не делаем, остаёмся на текущем роуте
