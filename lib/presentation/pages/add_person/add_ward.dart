@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pillura_med/core/app_snackbar.dart';
+import 'package:pillura_med/core/input_limits.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
 import 'package:pillura_med/presentation/providers/auth_providers.dart';
 
@@ -31,12 +32,8 @@ class _AddWardState extends ConsumerState<AddWard> {
                 child: InputBlock(
                   title: 'Имя',
                   hintText: 'Введите имя',
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Введите имя';
-                    }
-                    return null;
-                  },
+                  maxLength: kPersonNameMaxLength,
+                  validator: validatePersonName,
                   onSaved: (value) {
                     _name = value;
                   },

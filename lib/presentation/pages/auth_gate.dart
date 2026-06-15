@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pillura_med/presentation/pages/profile_page.dart';
 
 import '../providers/auth_providers.dart';
-import 'welcome_page.dart';
+import 'onboarding/authorization_page.dart';
 
 class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
@@ -16,7 +16,7 @@ class AuthGate extends ConsumerWidget {
     return authState.when(
       data: (user) {
         if (user.isAuthenticated) return const ProfilePage();
-        return WelcomePage();
+        return const AuthorizationPage();
       },
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),

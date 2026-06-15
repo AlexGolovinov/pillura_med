@@ -483,13 +483,44 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
     );
   }
 
+  void _scrollToFirstError() {
+    final formContext = _formKey.currentContext;
+    if (formContext == null) return;
+
+    BuildContext? errorContext;
+    void visit(Element element) {
+      if (errorContext != null) return;
+      if (element is StatefulElement && element.state is FormFieldState) {
+        final field = element.state as FormFieldState;
+        if (field.hasError) {
+          errorContext = field.context;
+          return;
+        }
+      }
+      element.visitChildren(visit);
+    }
+    visit(formContext as Element);
+
+    if (errorContext != null) {
+      Scrollable.ensureVisible(
+        errorContext!,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        alignment: 0.1,
+      );
+    }
+  }
+
   void _addMedicine() {
     if (!switchWithBreak) {
       _durationBreak = null;
     }
-    log('Не прошел валидацию');
-    if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
+    if (!_formKey.currentState!.validate()) {
+      AppSnackBar.show(context, 'Имеются незаполненные обязательные поля');
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToFirstError());
+      return;
+    }
+    _formKey.currentState!.save();
       log('Название: $_name');
       log('Количество: $_dosage');
       log('Тип дозировки: $_dosageType');
@@ -704,7 +735,6 @@ class _AddMedicationPageState extends ConsumerState<AddMedicationPage> {
           ),
         ),
       );
-    }
   }
 
   Future<void> _confirmMedicationSave(StateSetter setDialogState) async {

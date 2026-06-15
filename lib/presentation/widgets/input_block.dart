@@ -13,6 +13,7 @@ class InputBlock extends StatelessWidget {
   final void Function(String)? onFieldSubmitted;
   final void Function(String)? onChanged;
   final VoidCallback? onToggleObscure;
+  final int? maxLength;
 
   const InputBlock({
     super.key,
@@ -28,6 +29,7 @@ class InputBlock extends StatelessWidget {
     this.onFieldSubmitted,
     this.onChanged,
     this.onToggleObscure,
+    this.maxLength,
   });
 
   @override
@@ -46,6 +48,7 @@ class InputBlock extends StatelessWidget {
           decoration: InputDecoration(
             hintText: hintText,
             errorStyle: TextStyle(fontSize: 13),
+            counterText: maxLength != null ? '' : null,
             suffixIcon: onToggleObscure == null
                 ? null
                 : IconButton(
@@ -59,6 +62,7 @@ class InputBlock extends StatelessWidget {
           ),
           keyboardType: keyboardType,
           obscureText: obscureText,
+          maxLength: maxLength,
           autovalidateMode: AutovalidateMode.onUserInteraction,
           validator: validator,
 

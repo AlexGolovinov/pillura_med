@@ -16,7 +16,7 @@ import 'package:pillura_med/presentation/pages/onboarding/login_page.dart';
 import 'package:pillura_med/presentation/pages/onboarding/onboarding_page.dart';
 import 'package:pillura_med/presentation/pages/onboarding/register_page.dart';
 import 'package:pillura_med/presentation/pages/profile_page.dart';
-import 'package:pillura_med/presentation/pages/welcome_page.dart';
+import 'package:pillura_med/presentation/pages/onboarding/authorization_page.dart';
 import 'package:pillura_med/presentation/providers/auth_providers.dart';
 import 'package:pillura_med/router/scaffold_with_navbar.dart';
 
@@ -91,7 +91,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/welcomePage',
         name: 'WelcomePage',
-        builder: (context, state) => const WelcomePage(),
+        builder: (context, state) => const AuthorizationPage(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) =>

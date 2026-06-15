@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pillura_med/core/input_limits.dart';
 import 'package:pillura_med/core/listen_errors.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
 
@@ -170,16 +171,12 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                                 InputBlock(
                                   title: 'Имя',
                                   hintText: 'Как к вам обращаться',
+                                  maxLength: kPersonNameMaxLength,
                                   focusNode: _nameFocusNode,
                                   textInputAction: TextInputAction.next,
                                   onFieldSubmitted: (_) =>
                                       _focusNext(_emailFocusNode),
-                                  validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Введите имя';
-                                    }
-                                    return null;
-                                  },
+                                  validator: validatePersonName,
                                   onSaved: (value) => _name = value,
                                 ),
                                 const SizedBox(height: 16),

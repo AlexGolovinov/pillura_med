@@ -9,6 +9,7 @@ import '../../domain/entities/linked_user_access.dart';
 import '../../domain/entities/share_invite.dart';
 import '../../domain/entities/user_link.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../../core/input_limits.dart';
 
 class FirebaseAuthRepository implements AuthRepository {
   final fb.FirebaseAuth _firebaseAuth;
@@ -116,6 +117,9 @@ class FirebaseAuthRepository implements AuthRepository {
       final normalizedWardName = wardName.trim();
       if (normalizedWardName.isEmpty) {
         return left(Exception('Имя подопечного не может быть пустым'));
+      }
+      if (normalizedWardName.length > kPersonNameMaxLength) {
+        return left(Exception('Имя не должно быть длиннее $kPersonNameMaxLength символов'));
       }
 
       final wardDocRef = _firestore.collection('users').doc();
@@ -345,6 +349,12 @@ class FirebaseAuthRepository implements AuthRepository {
       }
 
       final normalizedName = name.trim();
+      if (normalizedName.isEmpty) {
+        return left(Exception('Имя не может быть пустым'));
+      }
+      if (normalizedName.length > kPersonNameMaxLength) {
+        return left(Exception('Имя не должно быть длиннее $kPersonNameMaxLength символов'));
+      }
       final authUser = AuthUser(
         uid: user.uid,
         email: user.email,
@@ -391,10 +401,18 @@ class FirebaseAuthRepository implements AuthRepository {
 
       final cred = await user.linkWithCredential(credential);
 
+      final normalizedName = name.trim();
+      if (normalizedName.isEmpty) {
+        return left(Exception('Имя не может быть пустым'));
+      }
+      if (normalizedName.length > kPersonNameMaxLength) {
+        return left(Exception('Имя не должно быть длиннее $kPersonNameMaxLength символов'));
+      }
+
       final authUser = AuthUser(
         uid: cred.user!.uid,
         email: email,
-        name: name,
+        name: normalizedName,
         isAnonymous: false,
         isAuthenticated: true,
       );

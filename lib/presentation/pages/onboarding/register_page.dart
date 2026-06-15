@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pillura_med/core/app_snackbar.dart';
+import 'package:pillura_med/core/input_limits.dart';
 import 'package:pillura_med/core/listen_errors.dart';
+import 'package:pillura_med/presentation/widgets/auth_form_widgets.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
 
 import '../../providers/auth_providers.dart';
@@ -15,8 +17,6 @@ class RegisterPage extends ConsumerStatefulWidget {
 }
 
 class _RegisterPageState extends ConsumerState<RegisterPage> {
-  static const _brandColor = Color(0xFF202D85);
-
   final _formKey = GlobalKey<FormState>();
   final _nameFocusNode = FocusNode();
   final _emailFocusNode = FocusNode();
@@ -53,21 +53,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
     setState(() => _isSubmitting = true);
     try {
-      await ref.read(authNotifierProvider.notifier).registerWithEmail(
-            _email!.trim(),
-            _password!.trim(),
-            _name!.trim(),
-          );
+      await ref
+          .read(authNotifierProvider.notifier)
+          .registerWithEmail(_email!.trim(), _password!.trim(), _name!.trim());
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
+  void _showGoogleUnavailable() =>
+      AppSnackBar.show(context, 'Вход через Google скоро будет доступен');
 
   @override
   Widget build(BuildContext context) {
@@ -88,57 +83,32 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'Регистрация',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: _brandColor,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 22,
-                      ),
-                ),
+                const AuthPageTitle(title: 'Регистрация'),
                 const SizedBox(height: 40),
                 InputBlock(
                   title: 'Имя',
                   hintText: 'Введите ваше имя',
+                  maxLength: kPersonNameMaxLength,
                   focusNode: _nameFocusNode,
                   textInputAction: TextInputAction.next,
                   onFieldSubmitted: (_) => _focusNext(_emailFocusNode),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Введите имя';
-                    }
-                    return null;
-                  },
+                  validator: validatePersonName,
                   onSaved: (value) => _name = value,
                 ),
                 const SizedBox(height: 16),
-                InputBlock(
-                  title: 'Логин',
-                  hintText: 'example@gmail.com',
-                  keyboardType: TextInputType.emailAddress,
+                AuthEmailField(
                   focusNode: _emailFocusNode,
                   textInputAction: TextInputAction.next,
                   onFieldSubmitted: (_) => _focusNext(_passwordFocusNode),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Введите email';
-                    }
-                    if (!value.contains('@')) {
-                      return 'Введите корректный email';
-                    }
-                    return null;
-                  },
                   onSaved: (value) => _email = value,
                 ),
                 const SizedBox(height: 16),
-                InputBlock(
-                  title: 'Пароль',
-                  hintText: 'Введите пароль',
+                AuthPasswordField(
                   obscureText: _obscurePassword,
                   focusNode: _passwordFocusNode,
                   textInputAction: TextInputAction.next,
-                  onFieldSubmitted: (_) => _focusNext(_confirmPasswordFocusNode),
+                  onFieldSubmitted: (_) =>
+                      _focusNext(_confirmPasswordFocusNode),
                   onChanged: (value) => _passwordInput = value,
                   onToggleObscure: () {
                     setState(() => _obscurePassword = !_obscurePassword);
@@ -155,7 +125,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   onSaved: (value) => _password = value,
                 ),
                 const SizedBox(height: 16),
-                InputBlock(
+                AuthPasswordField(
                   title: 'Подтверждение пароля',
                   hintText: 'Повторите пароль',
                   obscureText: _obscureConfirmPassword,
@@ -180,66 +150,23 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: _isSubmitting ? null : _submit,
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Готово'),
+                  child: LoadingButtonContent(
+                    isLoading: _isSubmitting,
+                    label: 'Готово',
+                  ),
                 ),
                 const SizedBox(height: 28),
-                const _OrDivider(),
+                const OrDivider(),
                 const SizedBox(height: 28),
-                OutlinedButton.icon(
-                  onPressed: _isSubmitting
-                      ? null
-                      : () => _showMessage(
-                            'Вход через Google скоро будет доступен',
-                          ),
-                  icon: SvgPicture.asset(
-                    'assets/icons/google.svg',
-                    width: 20,
-                    height: 20,
-                  ),
-                  label: const Text('Войти с google аккаунта'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF6E6E6E),
-                    side: const BorderSide(color: Color(0xFFD9D9D9)),
-                    minimumSize: const Size.fromHeight(48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
+                GoogleAuthButton(
+                  isLoading: false,
+                  onPressed: _isSubmitting ? null : _showGoogleUnavailable,
                 ),
               ],
             ),
           ),
         ),
       ),
-    );
-  }
-}
-
-class _OrDivider extends StatelessWidget {
-  const _OrDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const Expanded(child: Divider(color: Color(0xFFD9D9D9))),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text(
-            'или',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFF6E6E6E),
-                ),
-          ),
-        ),
-        const Expanded(child: Divider(color: Color(0xFFD9D9D9))),
-      ],
     );
   }
 }
