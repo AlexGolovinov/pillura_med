@@ -40,6 +40,8 @@ class MenuAddPerson extends ConsumerWidget {
                     'У меня есть код или QR, которым со мной поделился другой человек',
                 profileColorHint:
                     'В профиле — зелёная рамка. Передать этот доступ дальше нельзя.',
+                actionHint:
+                    'На экране «Профиль» удерживайте карточку, чтобы переименовать у себя или перестать отслеживать его лекарства.',
                 onTap: () {
                   if (isRestricted) {
                     AppSnackBar.show(context, restrictedMessage);
@@ -62,6 +64,8 @@ class MenuAddPerson extends ConsumerWidget {
                     'Человек (или питомец), о котором вы будете заботиться сами',
                 profileColorHint:
                     'В профиле — оранжевая рамка. Этим списком лекарств можно поделиться.',
+                actionHint:
+                    'На экране «Профиль» удерживайте карточку, чтобы переименовать или удалить подопечного.',
                 onTap: () {
                   if (isRestricted) {
                     AppSnackBar.show(context, restrictedMessage);
@@ -88,6 +92,7 @@ class _AddOptionCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.profileColorHint,
+    this.actionHint,
     required this.onTap,
   });
 
@@ -98,6 +103,7 @@ class _AddOptionCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final String profileColorHint;
+  final String? actionHint;
   final VoidCallback onTap;
 
   @override
@@ -166,6 +172,17 @@ class _AddOptionCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (actionHint != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        actionHint!,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFF5A5A5A),
+                          height: 1.35,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

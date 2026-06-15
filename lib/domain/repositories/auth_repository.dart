@@ -3,6 +3,7 @@ import 'package:pillura_med/domain/entities/auth_user.dart';
 import 'package:pillura_med/domain/entities/linked_user_access.dart';
 import 'package:pillura_med/domain/entities/share_invite.dart';
 import 'package:pillura_med/domain/entities/user_link.dart';
+import 'package:pillura_med/domain/enums/ward_profile_icon.dart';
 
 abstract class AuthRepository {
   Stream<Either<dynamic, AuthUser>> authStateChanges();
@@ -27,7 +28,20 @@ abstract class AuthRepository {
     required UserLinkPermission permission,
     UserLinkType type,
   });
-  Future<Either<dynamic, void>> addWard(String wardName);
+  Future<Either<dynamic, void>> addWard(
+    String wardName, {
+    WardProfileIcon profileIcon = WardProfileIcon.person,
+  });
+  Future<Either<dynamic, void>> revokeUserLink({
+    required String linkId,
+    required String ownerUserId,
+  });
+  Future<Either<dynamic, void>> updateLinkDisplayName({
+    required String linkId,
+    required String ownerUserId,
+    required String name,
+    WardProfileIcon? profileIcon,
+  });
   Future<Either<dynamic, List<LinkedUserAccess>>> getLinkedUsersForUser(
     String userId,
   );

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/auth_user.dart';
 import '../../domain/entities/linked_user_access.dart';
+import '../../domain/enums/ward_profile_icon.dart';
 
 import '../../domain/repositories/auth_repository.dart';
 import 'repository_provider.dart';
@@ -175,17 +176,65 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
     );
   }
 
-  Future<void> addWard(String wardName) async {
+  Future<void> addWard(
+    String wardName, {
+    WardProfileIcon profileIcon = WardProfileIcon.person,
+  }) async {
     final currentUser = state.value;
     if (currentUser == null || !currentUser.isAuthenticated) {
       return;
     }
 
-    final result = await _repo.addWard(wardName);
+    final result = await _repo.addWard(
+      wardName,
+      profileIcon: profileIcon,
+    );
     result.fold(
       (error) => state = AsyncValue.error(error, StackTrace.current),
       (_) {},
     );
+  }
+
+  Future<String?> revokeUserLink(String linkId) async {
+    final currentUser = state.value;
+    if (currentUser == null || !currentUser.isAuthenticated) {
+      return 'Пользователь не авторизован';
+    }
+
+    final result = await _repo.revokeUserLink(
+      linkId: linkId,
+      ownerUserId: currentUser.uid,
+    );
+    return result.fold(_formatRepoError, (_) => null);
+  }
+
+  Future<String?> updateLinkDisplayName(
+    String linkId,
+    String name, {
+    WardProfileIcon? profileIcon,
+  }) async {
+    final currentUser = state.value;
+    if (currentUser == null || !currentUser.isAuthenticated) {
+      return 'Пользователь не авторизован';
+    }
+
+    final result = await _repo.updateLinkDisplayName(
+      linkId: linkId,
+      ownerUserId: currentUser.uid,
+      name: name,
+      profileIcon: profileIcon,
+    );
+    return result.fold(_formatRepoError, (_) => null);
+  }
+
+  String _formatRepoError(dynamic error) {
+    if (error is Exception) {
+      final message = error.toString();
+      return message.startsWith('Exception: ')
+          ? message.substring('Exception: '.length)
+          : message;
+    }
+    return error.toString();
   }
 }
 

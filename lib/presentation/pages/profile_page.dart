@@ -2,17 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:implicitly_animated_reorderable_list_2/implicitly_animated_reorderable_list_2.dart';
+import 'package:pillura_med/core/app_snackbar.dart';
+import 'package:pillura_med/core/input_limits.dart';
+import 'package:pillura_med/core/theme/profile_link_colors.dart';
 import 'package:pillura_med/data/models/add_medication_route_data.dart';
 import 'package:pillura_med/data/models/medication_data.dart';
 import 'package:pillura_med/data/models/share_medications_route_data.dart';
+import 'package:pillura_med/domain/entities/linked_user_access.dart';
 import 'package:pillura_med/domain/entities/user_link.dart';
 import 'package:pillura_med/domain/enums/course_duration_unit.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
-import 'package:pillura_med/core/theme/profile_link_colors.dart';
+import 'package:pillura_med/domain/enums/ward_profile_icon.dart';
 import 'package:pillura_med/presentation/providers/auth_providers.dart';
 import 'package:pillura_med/presentation/providers/medication_provider.dart';
 import 'package:pillura_med/presentation/providers/repository_provider.dart';
 import 'package:pillura_med/presentation/widgets/medication_card.dart';
+import 'package:pillura_med/presentation/widgets/ward_icon_picker.dart';
 
 import '../../domain/entities/intake_rec/intake_record.dart';
 import '../../domain/entities/medication.dart';
@@ -43,6 +48,235 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _selectedLinkedUserName = null;
     _selectedLinkedUserCanEdit = false;
     _selectedLinkedUserType = null;
+  }
+
+  void _showLinkedProfileActions(LinkedUserAccess linkedUser) {
+    final isWard = linkedUser.linkType == UserLinkType.ward;
+    final name = linkedUser.displayTitle;
+
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: Text(isWard ? 'Редактировать' : 'Переименовать'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                if (isWard) {
+                  _showEditWardDialog(linkedUser);
+                } else {
+                  _showRenameShareDialog(linkedUser);
+                }
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.link_off_outlined,
+                color: Colors.red.shade700,
+              ),
+              title: Text(
+                isWard ? 'Удалить' : 'Перестать отслеживать',
+                style: TextStyle(color: Colors.red.shade700),
+              ),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _confirmRemoveLink(linkedUser, name);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showRenameShareDialog(LinkedUserAccess linkedUser) async {
+    final formKey = GlobalKey<FormState>();
+    final currentName = linkedUser.displayTitle;
+    String? newName;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Переименовать'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            initialValue: currentName,
+            maxLength: kPersonNameMaxLength,
+            decoration: const InputDecoration(
+              labelText: 'Имя',
+              counterText: '',
+            ),
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            validator: validatePersonName,
+            onSaved: (value) => newName = value?.trim(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (!formKey.currentState!.validate()) return;
+              formKey.currentState!.save();
+              Navigator.pop(dialogContext, true);
+            },
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+
+    if (saved != true || newName == null || !mounted) return;
+    if (newName == currentName) return;
+
+    final error = await ref
+        .read(authNotifierProvider.notifier)
+        .updateLinkDisplayName(linkedUser.linkId, newName!);
+
+    if (!mounted) return;
+    if (error != null) {
+      AppSnackBar.show(context, error);
+      return;
+    }
+
+    ref.invalidate(linkedUsersProvider);
+    if (_selectedLinkedUserId == linkedUser.user.uid) {
+      setState(() => _selectedLinkedUserName = newName);
+    }
+    AppSnackBar.show(context, 'Имя обновлено');
+  }
+
+  Future<void> _showEditWardDialog(LinkedUserAccess linkedUser) async {
+    final formKey = GlobalKey<FormState>();
+    final currentName = linkedUser.displayTitle;
+    final currentIcon = linkedUser.profileIcon ?? WardProfileIcon.person;
+    String? newName;
+    var selectedIcon = currentIcon;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Редактировать'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  WardIconPicker(
+                    selectedIcon: selectedIcon,
+                    onSelected: (icon) {
+                      setDialogState(() => selectedIcon = icon);
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    initialValue: currentName,
+                    maxLength: kPersonNameMaxLength,
+                    decoration: const InputDecoration(
+                      labelText: 'Имя',
+                      counterText: '',
+                    ),
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    validator: validatePersonName,
+                    onSaved: (value) => newName = value?.trim(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Отмена'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (!formKey.currentState!.validate()) return;
+                formKey.currentState!.save();
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Сохранить'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (saved != true || newName == null || !mounted) return;
+    if (newName == currentName && selectedIcon == currentIcon) return;
+
+    final error = await ref.read(authNotifierProvider.notifier).updateLinkDisplayName(
+          linkedUser.linkId,
+          newName!,
+          profileIcon: selectedIcon,
+        );
+
+    if (!mounted) return;
+    if (error != null) {
+      AppSnackBar.show(context, error);
+      return;
+    }
+
+    ref.invalidate(linkedUsersProvider);
+    if (_selectedLinkedUserId == linkedUser.user.uid) {
+      setState(() => _selectedLinkedUserName = newName);
+    }
+    AppSnackBar.show(context, 'Подопечный обновлён');
+  }
+
+  Future<void> _confirmRemoveLink(LinkedUserAccess linkedUser, String name) async {
+    final isWard = linkedUser.linkType == UserLinkType.ward;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(isWard ? 'Удалить подопечного?' : 'Перестать отслеживать?'),
+        content: Text(
+          isWard
+              ? 'Связь с профилем «$name» будет удалена. Его лекарства сохранятся.'
+              : 'Профиль «$name» исчезнет из вашего списка — вы больше не будете видеть его лекарства.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(isWard ? 'Удалить' : 'Перестать отслеживать'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final error = await ref
+        .read(authNotifierProvider.notifier)
+        .revokeUserLink(linkedUser.linkId);
+
+    if (!mounted) return;
+    if (error != null) {
+      AppSnackBar.show(context, error);
+      return;
+    }
+
+    ref.invalidate(linkedUsersProvider);
+    if (_selectedLinkedUserId == linkedUser.user.uid) {
+      setState(_resetSelectedProfile);
+    }
+    AppSnackBar.show(
+      context,
+      isWard ? 'Подопечный удалён' : 'Больше не отслеживаете лекарства',
+    );
   }
 
   String? _shareUnavailableReason({
@@ -172,8 +406,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       ),
                       const SizedBox(width: 12),
                       ...users.map((linkedUser) {
-                        final user = linkedUser.user;
-                        final title = (user.name ?? '').trim();
+                        final title = linkedUser.displayTitle;
                         if (title.isEmpty) {
                           return const SizedBox.shrink();
                         }
@@ -185,15 +418,23 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             kind: isWard
                                 ? _ProfileCardKind.ward
                                 : _ProfileCardKind.share,
-                            isSelected: _selectedLinkedUserId == user.uid,
+                            profileIcon: isWard
+                                ? (linkedUser.profileIcon ??
+                                      WardProfileIcon.person)
+                                    .iconData
+                                : null,
+                            isSelected:
+                                _selectedLinkedUserId == linkedUser.user.uid,
                             onTap: () {
                               setState(() {
-                                _selectedLinkedUserId = user.uid;
+                                _selectedLinkedUserId = linkedUser.user.uid;
                                 _selectedLinkedUserName = title;
                                 _selectedLinkedUserCanEdit = linkedUser.canEdit;
                                 _selectedLinkedUserType = linkedUser.linkType;
                               });
                             },
+                            onLongPress: () =>
+                                _showLinkedProfileActions(linkedUser),
                           ),
                         );
                       }),
@@ -607,13 +848,17 @@ class _QrUserCard extends StatelessWidget {
   const _QrUserCard({
     required this.title,
     required this.kind,
+    this.profileIcon,
     this.onTap,
+    this.onLongPress,
     this.isSelected = false,
   });
 
   final String title;
   final _ProfileCardKind kind;
+  final IconData? profileIcon;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final bool isSelected;
 
   Color get _borderColor {
@@ -666,9 +911,10 @@ class _QrUserCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
         height: 92,
-        width: 78,
+        width: 90,
         decoration: BoxDecoration(
           color: _backgroundColor,
           borderRadius: BorderRadius.circular(10),
@@ -693,7 +939,11 @@ class _QrUserCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            Icon(Icons.person_outline_rounded, size: 32, color: _iconColor),
+            Icon(
+              profileIcon ?? Icons.person_outline_rounded,
+              size: 32,
+              color: _iconColor,
+            ),
           ],
         ),
       ),

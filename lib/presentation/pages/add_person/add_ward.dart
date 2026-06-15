@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pillura_med/core/app_snackbar.dart';
 import 'package:pillura_med/core/input_limits.dart';
+import 'package:pillura_med/domain/enums/ward_profile_icon.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
+import 'package:pillura_med/presentation/widgets/ward_icon_picker.dart';
 import 'package:pillura_med/presentation/providers/auth_providers.dart';
 
 class AddWard extends ConsumerStatefulWidget {
@@ -15,8 +17,10 @@ class AddWard extends ConsumerStatefulWidget {
 
 class _AddWardState extends ConsumerState<AddWard> {
   String? _name;
+  WardProfileIcon _selectedIcon = WardProfileIcon.person;
   final _formKey = GlobalKey<FormState>();
   bool _isSaving = false;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -25,8 +29,13 @@ class _AddWardState extends ConsumerState<AddWard> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
-             children: [    
-              SizedBox(height: 16),          
+            children: [
+              const SizedBox(height: 16),
+              WardIconPicker(
+                selectedIcon: _selectedIcon,
+                onSelected: (icon) => setState(() => _selectedIcon = icon),
+              ),
+              const SizedBox(height: 20),
               Form(
                 key: _formKey,
                 child: InputBlock(
@@ -51,12 +60,12 @@ class _AddWardState extends ConsumerState<AddWard> {
                     : const Text('Добавить'),
               ),
             ],
-
           ),
         ),
       ),
     );
   }
+
   Future<void> _addWard() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
@@ -65,7 +74,10 @@ class _AddWardState extends ConsumerState<AddWard> {
       });
 
       try {
-        await ref.read(authNotifierProvider.notifier).addWard(_name!);
+        await ref.read(authNotifierProvider.notifier).addWard(
+              _name!,
+              profileIcon: _selectedIcon,
+            );
         ref.invalidate(linkedUsersProvider);
         if (!mounted) return;
         AppSnackBar.show(context, 'Подопечный добавлен');

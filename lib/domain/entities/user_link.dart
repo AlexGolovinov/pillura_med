@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pillura_med/domain/enums/ward_profile_icon.dart';
 
 enum UserLinkPermission { viewer, editor }
 
@@ -14,6 +15,8 @@ class UserLink {
   final UserLinkStatus status;
   final UserLinkType type;
   final DateTime? createdAt;
+  final String? displayName;
+  final WardProfileIcon? profileIcon;
 
   const UserLink({
     required this.id,
@@ -23,6 +26,8 @@ class UserLink {
     required this.status,
     required this.type,
     this.createdAt,
+    this.displayName,
+    this.profileIcon,
   });
 
   bool get canEdit => permission == UserLinkPermission.editor;
@@ -44,7 +49,13 @@ class UserLink {
         (e) => e.name == (json['type'] as String? ?? 'share'),
         orElse: () => UserLinkType.share,
       ),
-      createdAt: (json['createdAt'] as Timestamp).toDate(),
+      createdAt: json['createdAt'] is Timestamp
+          ? (json['createdAt'] as Timestamp).toDate()
+          : null,
+      displayName: json['displayName'] as String?,
+      profileIcon: json['profileIcon'] == null
+          ? null
+          : WardProfileIconX.fromStorage(json['profileIcon'] as String?),
     );
   }
 

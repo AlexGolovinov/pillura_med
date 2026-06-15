@@ -8,6 +8,7 @@ import '../../domain/entities/auth_user.dart';
 import '../../domain/entities/linked_user_access.dart';
 import '../../domain/entities/share_invite.dart';
 import '../../domain/entities/user_link.dart';
+import '../../domain/enums/ward_profile_icon.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../core/input_limits.dart';
 
@@ -107,7 +108,10 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<Either<dynamic, void>> addWard(String wardName) async {
+  Future<Either<dynamic, void>> addWard(
+    String wardName, {
+    WardProfileIcon profileIcon = WardProfileIcon.person,
+  }) async {
     try {
       final currentUser = _firebaseAuth.currentUser;
       if (currentUser == null) {
@@ -139,9 +143,83 @@ class FirebaseAuthRepository implements AuthRepository {
         'permission': UserLinkPermission.editor.name,
         'status': UserLinkStatus.active.name,
         'type': UserLinkType.ward.name,
+        'displayName': normalizedWardName,
+        'profileIcon': profileIcon.name,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+      return right(null);
+    } catch (e) {
+      return left(e);
+    }
+  }
+
+  @override
+  Future<Either<dynamic, void>> revokeUserLink({
+    required String linkId,
+    required String ownerUserId,
+  }) async {
+    try {
+      final doc = await _firestore.collection('user_links').doc(linkId).get();
+      if (!doc.exists) {
+        return left(Exception('Связь не найдена'));
+      }
+
+      final link = UserLink.fromJson(doc.id, doc.data()!);
+      if (link.inUserId != ownerUserId) {
+        return left(Exception('Нет доступа'));
+      }
+      if (link.status != UserLinkStatus.active) {
+        return left(Exception('Связь уже отключена'));
+      }
+
+      await doc.reference.update({'status': UserLinkStatus.revoked.name});
+      return right(null);
+    } catch (e) {
+      return left(e);
+    }
+  }
+
+  @override
+  Future<Either<dynamic, void>> updateLinkDisplayName({
+    required String linkId,
+    required String ownerUserId,
+    required String name,
+    WardProfileIcon? profileIcon,
+  }) async {
+    try {
+      final normalizedName = name.trim();
+      if (normalizedName.isEmpty) {
+        return left(Exception('Имя не может быть пустым'));
+      }
+      if (normalizedName.length > kPersonNameMaxLength) {
+        return left(
+          Exception('Имя не должно быть длиннее $kPersonNameMaxLength символов'),
+        );
+      }
+
+      final doc = await _firestore.collection('user_links').doc(linkId).get();
+      if (!doc.exists) {
+        return left(Exception('Связь не найдена'));
+      }
+
+      final link = UserLink.fromJson(doc.id, doc.data()!);
+      if (link.inUserId != ownerUserId) {
+        return left(Exception('Нет доступа'));
+      }
+      if (link.status != UserLinkStatus.active) {
+        return left(Exception('Связь неактивна'));
+      }
+
+      final updates = <String, dynamic>{'displayName': normalizedName};
+      if (profileIcon != null) {
+        if (link.type != UserLinkType.ward) {
+          return left(Exception('Иконку можно менять только у подопечного'));
+        }
+        updates['profileIcon'] = profileIcon.name;
+      }
+
+      await doc.reference.update(updates);
       return right(null);
     } catch (e) {
       return left(e);
@@ -191,9 +269,12 @@ class FirebaseAuthRepository implements AuthRepository {
         }
         linkedUsers.add(
           LinkedUserAccess(
+            linkId: link.id,
             user: AuthUser.fromJson(userDoc.data()),
             permission: link.permission,
             linkType: link.type,
+            displayName: link.displayName,
+            profileIcon: link.profileIcon,
           ),
         );
       }

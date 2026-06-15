@@ -273,7 +273,7 @@ class _ShareMedicationsPageState extends ConsumerState<ShareMedicationsPage> {
       if (!canShareThisLinkedProfile || ids.contains(linked.user.uid)) {
         continue;
       }
-      final userName = (linked.user.name ?? '').trim();
+      final userName = linked.displayTitle;
       result.add(
         _ShareableProfile(
           userId: linked.user.uid,
