@@ -6,7 +6,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:pillura_med/domain/enums/course_duration_unit.dart';
+import 'course_schedule.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/presentation/providers/medication_provider.dart';
 import 'package:pillura_med/presentation/providers/repository_provider.dart';
@@ -250,24 +250,7 @@ class NotificationService {
   }
 
   static bool _isMedicationActiveForReminders(Medication med, DateTime now) {
-    if (med.finishedAt) return false;
-    if (med.durationTaking == null) return true;
-
-    final startDate = DateTime(
-      med.startDate.year,
-      med.startDate.month,
-      med.startDate.day,
-    );
-    final totalDays =
-        med.durationTaking!.count *
-        (med.durationTaking!.unit == CourseDurationUnit.day
-            ? 1
-            : med.durationTaking!.unit == CourseDurationUnit.week
-            ? 7
-            : 30);
-    final courseEnd = startDate.add(Duration(days: totalDays - 1));
-    final today = DateTime(now.year, now.month, now.day);
-    return !courseEnd.isBefore(today);
+    return isMedicationCourseActive(med, now);
   }
 
   /// Вызов reconcile для текущего пользователя и его ward-связей.

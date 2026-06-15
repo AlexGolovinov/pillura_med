@@ -10,7 +10,7 @@ import 'package:pillura_med/data/models/medication_data.dart';
 import 'package:pillura_med/data/models/share_medications_route_data.dart';
 import 'package:pillura_med/domain/entities/linked_user_access.dart';
 import 'package:pillura_med/domain/entities/user_link.dart';
-import 'package:pillura_med/domain/enums/course_duration_unit.dart';
+import 'package:pillura_med/core/course_schedule.dart';
 import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/domain/enums/ward_profile_icon.dart';
 import 'package:pillura_med/presentation/providers/auth_providers.dart';
@@ -772,19 +772,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   String getCourseEndDate(Medication medication) {
-    if (medication.durationTaking != null) {
-      final startDate = medication.startDate;
-      final int totalDays =
-          medication.durationTaking!.count *
-          (medication.durationTaking!.unit == CourseDurationUnit.day
-              ? 1
-              : medication.durationTaking!.unit == CourseDurationUnit.week
-              ? 7
-              : 30);
-      final endDate = startDate.add(Duration(days: totalDays - 1));
-      return '${endDate.day} ${getMonthName(endDate.month)}';
-    }
-    return '';
+    final endDate = medicationCourseEndDate(medication);
+    if (endDate == null) return '';
+    return '${endDate.day} ${getMonthName(endDate.month)}';
   }
 }
 

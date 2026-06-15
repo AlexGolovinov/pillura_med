@@ -68,7 +68,13 @@ class _CourseDurationWidgetState extends State<CourseDurationWidget> {
             child: TextFormField(
               controller: _controller,
               keyboardType: TextInputType.number,
-              decoration: InputDecoration(hintText: 'Введите количество'),
+              decoration: InputDecoration(
+                hintText: switch (_selectedCourseDuration) {
+                  CourseDurationUnit.day => 'Количество дней приёма',
+                  CourseDurationUnit.week => 'Количество недель приёма',
+                  CourseDurationUnit.month => 'Количество месяцев приёма',
+                },
+              ),
               onChanged: (value) {
                 final int? count = value.isEmpty ? null : int.tryParse(value);
                 field.didChange(

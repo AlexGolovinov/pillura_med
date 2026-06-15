@@ -3,11 +3,10 @@ import 'dart:developer';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../../core/course_schedule.dart';
 import '../../core/notification_service.dart';
 import '../../domain/entities/intake_rec/intake_record.dart';
 import '../../domain/entities/medication.dart';
-import '../../domain/enums/course_duration_unit.dart';
-import '../../domain/enums/repeat_rule_type.dart';
 import '../../domain/repositories/medication_repository.dart';
 
 class FirebaseMedicationRepository implements MedicationRepository {
@@ -249,50 +248,30 @@ class FirebaseMedicationRepository implements MedicationRepository {
       med.startDate.day,
     );
     final fromDateOnly = DateTime(fromDate.year, fromDate.month, fromDate.day);
-    final int totalDays =
-        med.durationTaking!.count *
-        (med.durationTaking!.unit == CourseDurationUnit.day
-            ? 1
-            : med.durationTaking!.unit == CourseDurationUnit.week
-            ? 7
-            : 30);
+    final target = intakeDaysTarget(med.durationTaking!);
+    var intakeDaysFound = 0;
 
-    for (var i = 0; i < totalDays; i++) {
+    for (var i = 0; intakeDaysFound < target && i < 366 * 5; i++) {
       final currentDate = startDate.add(Duration(days: i));
       if (currentDate.isBefore(fromDateOnly)) continue;
+      if (!isMedicationIntakeDay(med, currentDate)) continue;
 
-      bool shouldAdd = false;
-      switch (med.repeatRule.type) {
-        case RepeatRuleType.everyDay:
-          shouldAdd = true;
-          break;
-        case RepeatRuleType.everyOtherDay:
-          shouldAdd = i % 2 == 0;
-          break;
-        case RepeatRuleType.weekly:
-          final weekday = currentDate.weekday;
-          shouldAdd = med.repeatRule.weekdays!.any(
-            (w) => w.isoIndex == weekday,
-          );
-          break;
-      }
-      if (shouldAdd) {
-        for (var j = 0; j < med.intakeTime.length; j++) {
-          final date = DateTime(
-            currentDate.year,
-            currentDate.month,
-            currentDate.day,
-            med.intakeTime[j].hour,
-            med.intakeTime[j].minute,
-          );
-          intakeRecords.add(
-            IntakeRecord(
-              medicationId: med.id,
-              isTaken: null,
-              scheduledDateTime: date,
-            ),
-          );
-        }
+      intakeDaysFound++;
+      for (var j = 0; j < med.intakeTime.length; j++) {
+        final date = DateTime(
+          currentDate.year,
+          currentDate.month,
+          currentDate.day,
+          med.intakeTime[j].hour,
+          med.intakeTime[j].minute,
+        );
+        intakeRecords.add(
+          IntakeRecord(
+            medicationId: med.id,
+            isTaken: null,
+            scheduledDateTime: date,
+          ),
+        );
       }
     }
     return intakeRecords;
