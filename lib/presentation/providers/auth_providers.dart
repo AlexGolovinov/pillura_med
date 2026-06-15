@@ -13,6 +13,24 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
   late final AuthRepository _repo;
   StreamSubscription? _authSubscription;
 
+  static final _unauthenticated = AuthUser(
+    uid: '',
+    isAuthenticated: false,
+    isAnonymous: false,
+  );
+
+  /// Показывает ошибку слушателям (listenErrors), затем восстанавливает data,
+  /// чтобы экраны с authState.when не застревали в error.
+  void _setTransientError(Object error) {
+    final previous = state.value ?? _unauthenticated;
+    state = AsyncError(error, StackTrace.current);
+    Future.microtask(() {
+      if (state.hasError) {
+        state = AsyncValue.data(previous);
+      }
+    });
+  }
+
   @override
   Future<AuthUser> build() async {
     _repo = ref.read(authFRepositoryProvider);
@@ -60,7 +78,6 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
   }
 
   Future<void> signInWithEmail(String email, String password) async {
-    state = const AsyncValue.loading();
     final user = await _repo.signInWithEmail(email, password);
     user.fold((l) {
       if (l is FirebaseAuthException) {
@@ -86,10 +103,10 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
           default:
             userMessage = 'Ошибка входа: ${l.message ?? 'неизвестная ошибка'}';
         }
-        state = AsyncError(userMessage, StackTrace.current);
+        _setTransientError(userMessage);
         return;
       }
-      state = AsyncError(l, StackTrace.current);
+      _setTransientError(l);
     }, (_) {});
     //AsyncValue.data(user.fold((l) => null, (r) => r));
   }
@@ -99,24 +116,61 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
     String password,
     String name,
   ) async {
-    state = const AsyncValue.loading();
-    try {
-      final user = await _repo.registerWithEmail(email, password, name);
-      return user.fold(
-        (l) => AuthUser(uid: '', isAuthenticated: false, isAnonymous: false),
-        (r) => r!,
-      );
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
+    final user = await _repo.registerWithEmail(email, password, name);
+    return user.fold((l) {
+      if (l is FirebaseAuthException) {
+        final userMessage = switch (l.code) {
+          'email-already-in-use' =>
+            'Этот email уже используется. Войдите в существующий аккаунт.',
+          'invalid-email' => 'Некорректный email',
+          'weak-password' => 'Пароль слишком простой. Минимум 6 символов.',
+          _ => 'Ошибка регистрации: ${l.message ?? 'неизвестная ошибка'}',
+        };
+        _setTransientError(userMessage);
+      } else {
+        _setTransientError(l);
+      }
       return AuthUser(uid: '', isAuthenticated: false, isAnonymous: false);
-    }
+    }, (r) {
+      final authUser =
+          r ?? AuthUser(uid: '', isAuthenticated: false, isAnonymous: false);
+      state = AsyncValue.data(authUser);
+      return authUser;
+    });
+  }
+
+  Future<void> upgradeAnonymousAccount(
+    String email,
+    String password,
+    String name,
+  ) async {
+    final result = await _repo.upgradeAnonymousAccount(email, password, name);
+    result.fold((l) {
+      if (l is FirebaseAuthException) {
+        final userMessage = switch (l.code) {
+          'email-already-in-use' =>
+            'Этот email уже используется. Войдите в существующий аккаунт.',
+          'invalid-email' => 'Некорректный email',
+          'weak-password' => 'Пароль слишком простой. Минимум 6 символов.',
+          'credential-already-in-use' =>
+            'Этот email уже привязан к другому способу входа.',
+          _ => 'Ошибка регистрации: ${l.message ?? 'неизвестная ошибка'}',
+        };
+        _setTransientError(userMessage);
+        return;
+      }
+      _setTransientError(l);
+    }, (user) {
+      if (user != null) {
+        state = AsyncValue.data(user);
+      }
+    });
   }
 
   Future<void> signOut() async {
-    state = const AsyncValue.loading();
     final result = await _repo.signOut();
     result.fold(
-      (error) => state = AsyncValue.error(error, StackTrace.current),
+      (error) => _setTransientError(error),
       (_) {},
     );
   }

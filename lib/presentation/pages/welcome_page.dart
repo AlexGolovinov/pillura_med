@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/notification_service.dart';
 import '../providers/auth_providers.dart';
@@ -32,6 +33,20 @@ class WelcomePage extends ConsumerWidget {
                         .read(authNotifierProvider.notifier)
                         .signInWithEmail("test@mail.com", "password!"),
                     child: Text("Войти с email"),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool('seen_onboarding', false);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Onboarding сброшен (seen_onboarding = false)'),
+                          ),
+                        );
+                      }
+                    },
+                    child: const Text('Сбросить onboarding'),
                   ),
                 ],
               );

@@ -4,12 +4,17 @@ import 'package:go_router/go_router.dart';
 import 'package:pillura_med/data/models/add_medication_route_data.dart';
 import 'package:pillura_med/data/models/medication_data.dart';
 import 'package:pillura_med/data/models/share_medications_route_data.dart';
+import 'package:pillura_med/presentation/pages/account_page.dart';
 import 'package:pillura_med/presentation/pages/add_medication.dart';
 import 'package:pillura_med/presentation/pages/add_person/add_ward.dart';
 import 'package:pillura_med/presentation/pages/add_person/menu_add_person.dart';
 import 'package:pillura_med/presentation/pages/add_person/share_medications_page.dart';
 import 'package:pillura_med/presentation/pages/landing.dart';
 import 'package:pillura_med/presentation/pages/medication_page.dart';
+import 'package:pillura_med/presentation/pages/onboarding/auth_choice_page.dart';
+import 'package:pillura_med/presentation/pages/onboarding/login_page.dart';
+import 'package:pillura_med/presentation/pages/onboarding/onboarding_page.dart';
+import 'package:pillura_med/presentation/pages/onboarding/register_page.dart';
 import 'package:pillura_med/presentation/pages/profile_page.dart';
 import 'package:pillura_med/presentation/pages/welcome_page.dart';
 import 'package:pillura_med/presentation/providers/auth_providers.dart';
@@ -18,31 +23,71 @@ import 'package:pillura_med/router/scaffold_with_navbar.dart';
 // Глобальный ключ навигации — создаётся один раз
 final navigatorKey = GlobalKey<NavigatorState>(debugLabel: 'go_router_key');
 
+/// Пересчитывает redirect без пересоздания GoRouter при смене auth.
+class _RouterRefreshListenable extends ChangeNotifier {
+  _RouterRefreshListenable(Ref ref) {
+    ref.listen(authNotifierProvider, (_, __) => notifyListeners());
+  }
+}
+
 final goRouterProvider = Provider<GoRouter>((ref) {
+  final refreshListenable = _RouterRefreshListenable(ref);
+  ref.onDispose(refreshListenable.dispose);
+
   return GoRouter(
     navigatorKey: navigatorKey,
     initialLocation: '/landing',
+    refreshListenable: refreshListenable,
     redirect: (context, state) {
-      final authState = ref.watch(authNotifierProvider).value;
+      final authState = ref.read(authNotifierProvider).value;
 
       if (authState == null) {
         // loading или error → ничего не делаем, остаёмся на текущем роуте
         return null;
       }
 
-      //редиректим только если реально авторизован или нет
-      // if (authState.isAuthenticated &&
-      //     state.matchedLocation == '/welcomePage') {
-      //   return '/profilePage';
-      // }
+      final publicRoutes = {
+        '/landing',
+        '/onboarding',
+        '/authChoice',
+        '/login',
+        '/register',
+        '/welcomePage',
+      };
+
+      if (authState.isAuthenticated &&
+          publicRoutes.contains(state.matchedLocation)) {
+        return '/profilePage';
+      }
+
       if (!authState.isAuthenticated &&
-          state.matchedLocation != '/welcomePage') {
-        return '/welcomePage';
+          !publicRoutes.contains(state.matchedLocation)) {
+        return '/landing';
       }
 
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/onboarding',
+        name: 'Onboarding',
+        builder: (context, state) => const OnboardingPage(),
+      ),
+      GoRoute(
+        path: '/authChoice',
+        name: 'AuthChoice',
+        builder: (context, state) => const AuthChoicePage(),
+      ),
+      GoRoute(
+        path: '/login',
+        name: 'Login',
+        builder: (context, state) => const LoginPage(),
+      ),
+      GoRoute(
+        path: '/register',
+        name: 'Register',
+        builder: (context, state) => const RegisterPage(),
+      ),
       GoRoute(
         path: '/welcomePage',
         name: 'WelcomePage',
@@ -67,6 +112,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 path: '/profilePage',
                 name: 'ProfilePage',
                 builder: (context, state) => ProfilePage(),
+              ),
+              GoRoute(
+                path: '/account',
+                name: 'Account',
+                builder: (context, state) => const AccountPage(),
               ),
               GoRoute(
                 path: '/addMedication',

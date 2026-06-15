@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:pillura_med/presentation/providers/auth_providers.dart';
+import 'package:pillura_med/presentation/providers/onboarding_provider.dart';
 
 class Landing extends ConsumerStatefulWidget {
   const Landing({super.key});
@@ -24,6 +25,7 @@ class _LandingState extends ConsumerState<Landing> {
   Future<void> _prepareApp() async {
     await checkPermissionsAndProceed(ref, context);
     await ref.read(authNotifierProvider.future);
+    await ref.read(hasSeenOnboardingProvider.future);
   }
 
   @override
@@ -47,9 +49,15 @@ class _LandingState extends ConsumerState<Landing> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final user = ref.read(authNotifierProvider).value;
-      user?.isAuthenticated == true
-          ? context.go('/profilePage')
-          : context.go('/welcomePage');
+      final hasSeenOnboarding =
+          ref.read(hasSeenOnboardingProvider).value ?? false;
+
+      if (user?.isAuthenticated == true) {
+        context.go('/profilePage');
+        return;
+      }
+
+      context.go(hasSeenOnboarding ? '/welcomePage' : '/onboarding');
     });
   }
 }
