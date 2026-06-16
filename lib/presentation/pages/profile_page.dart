@@ -15,6 +15,7 @@ import 'package:pillura_med/domain/enums/dosage_type.dart';
 import 'package:pillura_med/domain/enums/ward_profile_icon.dart';
 import 'package:pillura_med/presentation/providers/auth_providers.dart';
 import 'package:pillura_med/presentation/providers/medication_provider.dart';
+import 'package:pillura_med/presentation/providers/notification_provider.dart';
 import 'package:pillura_med/presentation/providers/repository_provider.dart';
 import 'package:pillura_med/presentation/widgets/medication_card.dart';
 import 'package:pillura_med/presentation/widgets/ward_icon_picker.dart';
@@ -30,7 +31,9 @@ const _fabListBottomPadding =
     kFloatingActionButtonMargin + kMinInteractiveDimension + 8;
 
 class ProfilePage extends ConsumerStatefulWidget {
-  const ProfilePage({super.key});
+  final String? initialProfileUserId;
+
+  const ProfilePage({super.key, this.initialProfileUserId});
 
   @override
   ConsumerState<ProfilePage> createState() => _ProfilePageState();
@@ -42,6 +45,66 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool _selectedLinkedUserCanEdit = false;
   UserLinkType? _selectedLinkedUserType;
   _MedicationListFilter _medicationFilter = _MedicationListFilter.today;
+  String? _pendingInitialProfileUserId;
+
+  @override
+  void initState() {
+    super.initState();
+    _pendingInitialProfileUserId = widget.initialProfileUserId;
+  }
+
+  @override
+  void didUpdateWidget(ProfilePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialProfileUserId != oldWidget.initialProfileUserId &&
+        widget.initialProfileUserId != null) {
+      _pendingInitialProfileUserId = widget.initialProfileUserId;
+    }
+  }
+
+  void _selectLinkedProfile(String userId, List<LinkedUserAccess> users) {
+    final currentUserId = ref.read(currentUserIdProvider);
+    if (currentUserId == null) return;
+
+    if (userId == currentUserId) {
+      setState(_resetSelectedProfile);
+      return;
+    }
+
+    for (final linkedUser in users) {
+      if (linkedUser.user.uid != userId) continue;
+      setState(() {
+        _selectedLinkedUserId = linkedUser.user.uid;
+        _selectedLinkedUserName = linkedUser.displayTitle;
+        _selectedLinkedUserCanEdit = linkedUser.canEdit;
+        _selectedLinkedUserType = linkedUser.linkType;
+      });
+      return;
+    }
+  }
+
+  void _applyInitialProfileSelection(List<LinkedUserAccess> users) {
+    final initialId = _pendingInitialProfileUserId;
+    if (initialId == null) return;
+
+    _selectLinkedProfile(initialId, users);
+    _pendingInitialProfileUserId = null;
+  }
+
+  void _applyPendingNotificationProfile(List<LinkedUserAccess> users) {
+    final pendingId = ref.read(pendingNotificationProfileIdProvider);
+    if (pendingId == null) return;
+
+    final currentUserId = ref.read(currentUserIdProvider);
+    if (currentUserId != null && pendingId == currentUserId) {
+      setState(_resetSelectedProfile);
+      ref.read(pendingNotificationProfileIdProvider.notifier).clear();
+      return;
+    }
+
+    _selectLinkedProfile(pendingId, users);
+    ref.read(pendingNotificationProfileIdProvider.notifier).clear();
+  }
 
   void _resetSelectedProfile() {
     _selectedLinkedUserId = null;
@@ -309,11 +372,38 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Widget build(BuildContext context) {
     ref.listen<String?>(currentUserIdProvider, (previous, next) {
       if (previous == next || !mounted) return;
+      // Первое появление uid после старта — не сбрасываем выбор подопечного.
+      if (previous == null) return;
       setState(_resetSelectedProfile);
+    });
+
+    ref.listen(pendingNotificationProfileIdProvider, (previous, next) {
+      if (next == null) return;
+
+      final currentUserId = ref.read(currentUserIdProvider);
+      if (currentUserId != null && next == currentUserId) {
+        setState(_resetSelectedProfile);
+        ref.read(pendingNotificationProfileIdProvider.notifier).clear();
+        return;
+      }
+
+      final linkedUsers = ref.read(linkedUsersProvider);
+      linkedUsers.whenData(_applyPendingNotificationProfile);
+    });
+
+    ref.listen(linkedUsersProvider, (previous, next) {
+      next.whenData((users) {
+        _applyInitialProfileSelection(users);
+        _applyPendingNotificationProfile(users);
+      });
     });
 
     final authUser = ref.watch(authNotifierProvider).value;
     final linkedUsers = ref.watch(linkedUsersProvider);
+    linkedUsers.whenData((users) {
+      _applyInitialProfileSelection(users);
+      _applyPendingNotificationProfile(users);
+    });
     final hasShareStatus = linkedUsers.maybeWhen(
       data: (users) =>
           users.any((user) => user.linkType == UserLinkType.share),

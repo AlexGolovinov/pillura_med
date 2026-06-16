@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:pillura_med/presentation/providers/auth_providers.dart';
+import 'package:pillura_med/presentation/providers/notification_provider.dart';
+import 'package:pillura_med/presentation/providers/repository_provider.dart';
 import 'package:pillura_med/presentation/providers/onboarding_provider.dart';
 
 class Landing extends ConsumerStatefulWidget {
@@ -53,7 +55,17 @@ class _LandingState extends ConsumerState<Landing> {
           ref.read(hasSeenOnboardingProvider).value ?? false;
 
       if (user?.isAuthenticated == true) {
-        context.go('/profilePage');
+        final currentUserId = ref.read(currentUserIdProvider);
+        final pendingProfileId = ref.read(pendingNotificationProfileIdProvider);
+        if (pendingProfileId != null && currentUserId != null) {
+          if (pendingProfileId != currentUserId) {
+            context.go('/profilePage?profileUserId=$pendingProfileId');
+          } else {
+            context.go('/profilePage');
+          }
+        } else {
+          context.go('/profilePage');
+        }
         return;
       }
 

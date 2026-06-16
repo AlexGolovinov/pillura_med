@@ -18,6 +18,8 @@ import 'package:pillura_med/presentation/pages/onboarding/register_page.dart';
 import 'package:pillura_med/presentation/pages/profile_page.dart';
 import 'package:pillura_med/presentation/pages/onboarding/authorization_page.dart';
 import 'package:pillura_med/presentation/providers/auth_providers.dart';
+import 'package:pillura_med/presentation/providers/notification_provider.dart';
+import 'package:pillura_med/presentation/providers/repository_provider.dart';
 import 'package:pillura_med/router/scaffold_with_navbar.dart';
 
 // Глобальный ключ навигации — создаётся один раз
@@ -57,6 +59,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
       if (authState.isAuthenticated &&
           publicRoutes.contains(state.matchedLocation)) {
+        final pendingProfileId = ref.read(pendingNotificationProfileIdProvider);
+        final currentUid = ref.read(currentUserIdProvider);
+        if (pendingProfileId != null &&
+            currentUid != null &&
+            pendingProfileId != currentUid) {
+          return '/profilePage?profileUserId=$pendingProfileId';
+        }
         return '/profilePage';
       }
 
@@ -111,7 +120,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/profilePage',
                 name: 'ProfilePage',
-                builder: (context, state) => ProfilePage(),
+                builder: (context, state) => ProfilePage(
+                  initialProfileUserId:
+                      state.uri.queryParameters['profileUserId'],
+                ),
               ),
               GoRoute(
                 path: '/account',

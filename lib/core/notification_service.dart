@@ -46,6 +46,49 @@ Future<int> getNextNotificationId() async {
   });
 }
 
+String _intakeActionPrefsKey(String medId, String recordId) =>
+    'taken_${medId}_$recordId';
+
+({String medId, String recordId})? _parseIntakeActionPrefsKey(String key) {
+  if (!key.startsWith('taken_')) return null;
+  final payload = key.substring('taken_'.length);
+  final sep = payload.lastIndexOf('_');
+  if (sep <= 0) return null;
+  return (
+    medId: payload.substring(0, sep),
+    recordId: payload.substring(sep + 1),
+  );
+}
+
+Future<void> _saveIntakeActionToPrefs({
+  required String medId,
+  required String recordId,
+  required bool isTaken,
+}) async {
+  final prefs = await SharedPreferences.getInstance();
+  final key = _intakeActionPrefsKey(medId, recordId);
+  await prefs.setBool(key, isTaken);
+  log('✅ Saved to SharedPreferences: $key = $isTaken');
+}
+
+Future<void> _removeIntakeActionFromPrefs({
+  required String medId,
+  required String recordId,
+}) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.remove(_intakeActionPrefsKey(medId, recordId));
+}
+
+Map<String, dynamic>? _decodeNotificationPayload(String? payload) {
+  if (payload == null) return null;
+  try {
+    return jsonDecode(payload) as Map<String, dynamic>;
+  } catch (e) {
+    log('Failed to decode payload: $e');
+    return null;
+  }
+}
+
 @pragma('vm:entry-point')
 Future<void> notificationBackgroundHandler(
   NotificationResponse response,
@@ -54,31 +97,28 @@ Future<void> notificationBackgroundHandler(
   log('Action ID: ${response.actionId}');
   log('Payload: ${response.payload}');
 
-  final payload = response.payload;
-  if (payload == null) {
-    log('Payload null!');
+  final data = _decodeNotificationPayload(response.payload);
+  if (data == null) {
+    log('Payload null or invalid!');
     return;
   }
 
-  Map<String, dynamic>? data;
-  try {
-    data = jsonDecode(payload) as Map<String, dynamic>;
-  } catch (e) {
-    log('Failed to decode payload: $e');
-    return;
-  }
-
-  final medId = data['medId'];
-  final recordId = data['intakeRecordId'];
-
-  final prefs = await SharedPreferences.getInstance();
-  final key = 'taken_${medId}_$recordId';
+  final medId = data['medId'] as String?;
+  final recordId = data['intakeRecordId'] as String?;
+  if (medId == null || recordId == null) return;
 
   if (response.actionId == 'action_take') {
-    await prefs.setBool(key, true);
-    log('✅ Saved to SharedPreferences: $key = true');
+    await _saveIntakeActionToPrefs(
+      medId: medId,
+      recordId: recordId,
+      isTaken: true,
+    );
   } else if (response.actionId == 'action_skip') {
-    await prefs.setBool(key, false);
+    await _saveIntakeActionToPrefs(
+      medId: medId,
+      recordId: recordId,
+      isTaken: false,
+    );
   }
 }
 
@@ -92,10 +132,129 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
   return NotificationService(ref: ref, plugin: plugin);
 });
 
+NotificationResponse? _pendingLaunchNotificationResponse;
+String? _pendingNavigationUserId;
+
 class NotificationService {
   final FlutterLocalNotificationsPlugin plugin;
   final Ref ref;
   NotificationService({required this.ref, required this.plugin});
+
+  static String? get pendingNavigationUserId => _pendingNavigationUserId;
+
+  static Future<String?> resolveMedicationOwnerId(String medId) async {
+    final medDoc = await _firestore.collection('medications').doc(medId).get();
+    final ownerId = medDoc.data()?['userId'] as String?;
+    if (ownerId != null && ownerId.isNotEmpty) {
+      return ownerId;
+    }
+    return null;
+  }
+
+  /// Синхронизирует отметки приёма из SharedPreferences (фоновые действия).
+  /// Работает и для своего профиля, и для подопечных.
+  Future<void> syncPendingIntakeActionsFromPrefs() async {
+    final currentUserId = ref.read(currentUserIdProvider);
+    if (currentUserId == null || currentUserId.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+
+    final keys = prefs
+        .getKeys()
+        .where((key) => key.startsWith('taken_'))
+        .toList();
+    if (keys.isEmpty) return;
+
+    for (final key in keys) {
+      final parsed = _parseIntakeActionPrefsKey(key);
+      if (parsed == null) continue;
+
+      final isTaken = prefs.getBool(key);
+      if (isTaken == null) continue;
+
+      var targetUserId = currentUserId;
+      final ownerId = await resolveMedicationOwnerId(parsed.medId);
+      if (ownerId != null) {
+        targetUserId = ownerId;
+      }
+
+      try {
+        final notifier = ref.read(
+          medicationNotifierProvider(targetUserId).notifier,
+        );
+        final record = await notifier.getIntakeRecordById(parsed.recordId);
+        await notifier.updateIntakeTimeFromRecord(record, isTaken);
+        await prefs.remove(key);
+        log(
+          'syncPendingIntakeActionsFromPrefs: $key → '
+          '${isTaken ? "принят" : "пропущен"} (user=$targetUserId)',
+        );
+      } catch (e) {
+        log('syncPendingIntakeActionsFromPrefs error for $key: $e');
+      }
+    }
+  }
+
+  Future<void> processPendingLaunchAndNavigation() async {
+    final currentUserId = ref.read(currentUserIdProvider);
+    if (currentUserId == null || currentUserId.isEmpty) return;
+
+    await syncPendingIntakeActionsFromPrefs();
+
+    final pendingResponse = _pendingLaunchNotificationResponse;
+    if (pendingResponse != null) {
+      _pendingLaunchNotificationResponse = null;
+      await processNotificationResponse(pendingResponse);
+      return;
+    }
+
+    final pendingUserId = _pendingNavigationUserId;
+    if (pendingUserId != null) {
+      _pendingNavigationUserId = null;
+      _navigateToProfile(pendingUserId);
+    }
+  }
+
+  void _rememberProfileNavigation(String targetUserId) {
+    final currentUserId = ref.read(currentUserIdProvider);
+    if (targetUserId.isEmpty) return;
+
+    ref.read(pendingNotificationProfileIdProvider.notifier).setProfileId(
+      targetUserId,
+    );
+    if (currentUserId != null && targetUserId != currentUserId) {
+      _pendingNavigationUserId = targetUserId;
+    } else {
+      _pendingNavigationUserId = null;
+    }
+  }
+
+  void _navigateToProfile(String? targetUserId) {
+    if (targetUserId == null || targetUserId.isEmpty) return;
+
+    _rememberProfileNavigation(targetUserId);
+
+    final currentUserId = ref.read(currentUserIdProvider);
+
+    void go() {
+      final context = navigatorKey.currentContext;
+      if (context == null) return;
+
+      final router = GoRouter.of(context);
+      if (currentUserId != null && targetUserId != currentUserId) {
+        router.go('/profilePage?profileUserId=$targetUserId');
+      } else {
+        router.go('/profilePage');
+      }
+    }
+
+    if (navigatorKey.currentContext != null) {
+      go();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => go());
+    }
+  }
 
   AndroidFlutterLocalNotificationsPlugin? get _androidImplementation => plugin
       .resolvePlatformSpecificImplementation<
@@ -115,6 +274,24 @@ class NotificationService {
           foregroundNotificationHandler(response, ref),
       onDidReceiveBackgroundNotificationResponse: notificationBackgroundHandler,
     );
+
+    final launchDetails = await notifications.getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp ?? false) {
+      final response = launchDetails?.notificationResponse;
+      if (response != null) {
+        _pendingLaunchNotificationResponse = response;
+        log('📲 App launched from notification: ${response.payload}');
+
+        final data = _decodeNotificationPayload(response.payload);
+        final medId = data?['medId'] as String?;
+        if (medId != null) {
+          final ownerId = await resolveMedicationOwnerId(medId);
+          if (ownerId != null) {
+            _rememberProfileNavigation(ownerId);
+          }
+        }
+      }
+    }
 
     // Create Android channels
     final androidImpl = _androidImplementation;
@@ -370,77 +547,85 @@ class NotificationService {
     NotificationResponse response,
     Ref ref,
   ) async {
+    final pending = _pendingLaunchNotificationResponse;
+    if (pending != null &&
+        pending.payload == response.payload &&
+        pending.actionId == response.actionId) {
+      log('Skipping duplicate launch notification response');
+      return;
+    }
+    await processNotificationResponse(response);
+  }
+
+  Future<void> processNotificationResponse(NotificationResponse response) async {
     final d0 = DateTime.now();
-    log('📲 onDidReceiveNotificationResponse: ${response.payload}');
+    log('📲 processNotificationResponse: ${response.payload}');
     log('Action ID: ${response.actionId}');
-    log('Payload: ${response.payload}');
-    final payload = response.payload;
-    // Просто клик на уведомление — можно навигировать на общий список
-    if (navigatorKey.currentContext != null) {
-      GoRouter.of(
-        navigatorKey.currentContext!,
-      ).go('/profilePage'); // ваш роут на список лекарств
-    } else {
-      // Если context ещё не готов (редко), отложить
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (navigatorKey.currentContext != null) {
-          GoRouter.of(navigatorKey.currentContext!).go('/profilePage');
+
+    final data = _decodeNotificationPayload(response.payload);
+    final currentUserId = ref.read(currentUserIdProvider);
+
+    String? targetUserId = currentUserId;
+    if (data != null) {
+      final medId = data['medId'] as String?;
+      if (medId != null) {
+        final ownerId = await resolveMedicationOwnerId(medId);
+        if (ownerId != null) {
+          targetUserId = ownerId;
         }
-      });
+      }
     }
 
     if (response.actionId == null) {
-      // Пользователь просто нажал на уведомление, без выбора действия
-      return;
-    }
-    if (payload == null) {
-      log('Payload null!');
+      if (currentUserId != null) {
+        _navigateToProfile(targetUserId);
+      } else if (targetUserId != null) {
+        _rememberProfileNavigation(targetUserId);
+      }
       return;
     }
 
-    Map<String, dynamic>? data;
-    try {
-      data = jsonDecode(payload) as Map<String, dynamic>;
-    } catch (e) {
+    if (data == null) {
+      log('Payload null or invalid!');
       return;
     }
 
     final recordId = data['intakeRecordId'] as String?;
-    if (recordId == null) {
-      log('Payload does not contain intakeRecordId');
-      return;
-    }
     final medId = data['medId'] as String?;
-    String? targetUserId = ref.read(currentUserIdProvider);
-    if (medId != null) {
-      final medDoc = await _firestore
-          .collection('medications')
-          .doc(medId)
-          .get();
-      final ownerId = medDoc.data()?['userId'] as String?;
-      if (ownerId != null && ownerId.isNotEmpty) {
-        targetUserId = ownerId;
-      }
-    }
-    if (targetUserId == null) {
-      log('Cannot resolve target user for notification action');
+    if (recordId == null || medId == null) {
+      log('Payload does not contain intakeRecordId or medId');
       return;
     }
+
+    final isTaken = response.actionId == 'action_take';
+
+    if (currentUserId == null) {
+      await _saveIntakeActionToPrefs(
+        medId: medId,
+        recordId: recordId,
+        isTaken: isTaken,
+      );
+      if (targetUserId != null) {
+        _rememberProfileNavigation(targetUserId);
+      }
+      log('Auth not ready — saved to prefs, navigation deferred');
+      return;
+    }
+
     final notifier = ref.read(
-      medicationNotifierProvider(targetUserId).notifier,
+      medicationNotifierProvider(targetUserId!).notifier,
     );
     final record = await notifier.getIntakeRecordById(recordId);
     log(
       'Получена запись приёма: ${record.id} (затрачено: ${DateTime.now().difference(d0).inMilliseconds} ms)',
     );
     final t1 = DateTime.now();
-    await notifier.updateIntakeTimeFromRecord(
-      record,
-      response.actionId == 'action_take' ? true : false,
-    );
+    await notifier.updateIntakeTimeFromRecord(record, isTaken);
+    await _removeIntakeActionFromPrefs(medId: medId, recordId: recordId);
     log(
-      'Приём помечен как ${response.actionId == 'action_take' ? "принят" : "пропущен"} (затрачено: ${DateTime.now().difference(t1).inMilliseconds} ms)',
+      'Приём помечен как ${isTaken ? "принят" : "пропущен"} (затрачено: ${DateTime.now().difference(t1).inMilliseconds} ms)',
     );
+    _navigateToProfile(targetUserId);
   }
 
   // removed instance background handler — use top-level handler below

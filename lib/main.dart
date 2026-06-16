@@ -13,7 +13,6 @@ import 'domain/entities/linked_user_access.dart';
 import 'domain/entities/user_link.dart';
 import 'firebase_options.dart';
 import 'core/notification_service.dart';
-import 'presentation/providers/medication_provider.dart';
 import 'presentation/providers/repository_provider.dart';
 
 void main() async {
@@ -79,8 +78,10 @@ class _AppRootState extends ConsumerState<AppRoot> {
     // Отложим проверку разрешений, инициализацию уведомлений и синхронизацию
     // до первого кадра: это позволяет корректно показывать диалоги.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await ref.read(notificationServiceProvider).init();
+      final notificationService = ref.read(notificationServiceProvider);
+      await notificationService.init();
       await _reconcileNotificationAlarms();
+      await notificationService.processPendingLaunchAndNavigation();
     });
 
     // Register lifecycle listener that uses the same ref
@@ -88,9 +89,9 @@ class _AppRootState extends ConsumerState<AppRoot> {
       onResume: () {
         final userId = ref.read(currentUserIdProvider);
         if (userId == null) return;
-        ref
-            .read(medicationNotifierProvider(userId).notifier)
-            .syncTakenFromPrefs();
+        unawaited(
+          ref.read(notificationServiceProvider).processPendingLaunchAndNavigation(),
+        );
         unawaited(_reconcileNotificationAlarms());
       },
     );
@@ -107,6 +108,9 @@ class _AppRootState extends ConsumerState<AppRoot> {
     ref.listen<String?>(currentUserIdProvider, (previous, next) {
       if (next != null && next != previous) {
         unawaited(_reconcileNotificationAlarms());
+        unawaited(
+          ref.read(notificationServiceProvider).processPendingLaunchAndNavigation(),
+        );
       } else if (previous != null && next == null) {
         unawaited(NotificationService.cancelAllScheduledNotifications());
       }

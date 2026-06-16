@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pillura_med/core/notification_service.dart';
 import 'package:pillura_med/presentation/providers/repository_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/entities/course_duration.dart';
 import '../../domain/entities/intake_rec/intake_record.dart';
 import '../../domain/entities/medication.dart';
@@ -191,37 +190,7 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
   }
 
   Future<void> syncTakenFromPrefs() async {
-    if (_userId != ref.read(currentUserIdProvider)) {
-      return;
-    }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.reload();
-    if (prefs.getKeys().isEmpty) return;
-
-    final keyAndValue = <String, bool?>{};
-    for (final key in prefs.getKeys()) {
-      if (!key.startsWith('taken_')) continue;
-      final value = prefs.getBool(key);
-      if (value != null) {
-        keyAndValue[key] = value;
-        prefs.remove(key);
-      }
-    }
-    if (keyAndValue.isEmpty) return;
-
-    try {
-      for (final key in keyAndValue.keys) {
-        final value = keyAndValue[key];
-        if (value != null) {
-          final recordId = key.split('_')[2];
-
-          final record = await _repo.getIntakeRecordById(recordId);
-          await updateIntakeTimeFromRecord(record, value);
-        }
-      }
-    } catch (e) {
-      log('Error syncing taken status from prefs: $e');
-    }
+    await ref.read(notificationServiceProvider).syncPendingIntakeActionsFromPrefs();
   }
 
   void notifyListChanged() {
