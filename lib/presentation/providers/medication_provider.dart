@@ -153,6 +153,16 @@ class MedicationNotifier extends AsyncNotifier<List<MedicationWithIntakes>> {
   ) async {
     if (record.medicationId == null) return;
 
+    if (!state.hasValue) {
+      try {
+        await future;
+      } catch (e) {
+        log('Cannot update intake before medications loaded: $e');
+        return;
+      }
+    }
+    if (!state.hasValue) return;
+
     final previousState = state;
     final current = state.value ?? [];
 

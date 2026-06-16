@@ -62,26 +62,30 @@ class WelcomePage extends ConsumerWidget {
                   ),
                   ElevatedButton(
                     onPressed: () {
+                      final profileName = (user.name ?? '').trim().isNotEmpty
+                          ? user.name!.trim()
+                          : (user.isAnonymous ? 'Гость' : 'Пользователь');
                       NotificationService.showInstantNotification(
                         id: 1,
-                        title: "Тестовое уведомление",
-                        body: "Это мгновенное уведомление",
+                        profileName: profileName,
                       );
                     },
-                    child: Text("Мгновенное уведомление"),
+                    child: const Text('Мгновенное уведомление'),
                   ),
                   ElevatedButton(
                     onPressed: () async {
                       final permissions = await checkPermissions();
                       if (permissions) {
-                        NotificationService.scheduleReminderNotification(
+                        final profileName = (user.name ?? '').trim().isNotEmpty
+                            ? user.name!.trim()
+                            : (user.isAnonymous ? 'Гость' : 'Пользователь');
+                        await NotificationService.scheduleReminderNotification(
                           id: 1,
-                          title: "Тестовое уведомление",
-                          body: "Это запланированное уведомление",
+                          profileName: profileName,
                         );
                       }
                     },
-                    child: Text("Запланированное уведомление"),
+                    child: const Text('Запланированное уведомление'),
                   ),
                   ElevatedButton(
                     onPressed: () async {

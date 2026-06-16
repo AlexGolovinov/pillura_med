@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:pillura_med/core/input_limits.dart';
 import 'package:pillura_med/core/listen_errors.dart';
+import 'package:pillura_med/core/notification_service.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
 
 import '../providers/auth_providers.dart';
@@ -133,6 +135,27 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                                 fontWeight: FontWeight.w800,
                                 color: _brandColor,
                               ),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            NotificationService.showInstantNotification(
+                              id: 1,
+                              profileName: displayName,
+                            );
+                          },
+                          child: const Text('Мгновенное уведомление'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () async {
+                            final permissions = await checkPermissions();
+                            if (permissions) {
+                              await NotificationService.scheduleReminderNotification(
+                                id: 1,
+                                profileName: displayName,
+                              );
+                            }
+                          },
+                          child: const Text('Запланированное уведомление'),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -293,4 +316,11 @@ class _AccountPageState extends ConsumerState<AccountPage> {
           ),
         );
   }
+}
+Future<bool> checkPermissions() async {
+  if (await Permission.scheduleExactAlarm.isDenied) {
+    // Это откроет специальную страницу настроек "Доступ к точным будильникам"
+    await Permission.scheduleExactAlarm.request();
+  }
+  return await Permission.scheduleExactAlarm.isGranted;
 }

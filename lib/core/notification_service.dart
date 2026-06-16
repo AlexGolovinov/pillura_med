@@ -140,7 +140,81 @@ class NotificationService {
   final Ref ref;
   NotificationService({required this.ref, required this.plugin});
 
+  static const String _darwinCategoryId = 'medication_intake_actions';
+  static const String _intakePayloadVersion = '3';
+  static final Map<String, String> _userNameCache = <String, String>{};
+
   static String? get pendingNavigationUserId => _pendingNavigationUserId;
+
+  static String _formatIntakeNotificationTitle({
+    required String medicationName,
+    required double dosage,
+    required String dosageLabel,
+  }) =>
+      '$medicationName - $dosage $dosageLabel';
+
+  static String _formatIntakeNotificationBody({
+    required String profileName,
+    required DateTime intakeTime,
+  }) {
+    final timeLabel = DateFormat('HH:mm').format(intakeTime);
+    return 'кому: $profileName / время: $timeLabel';
+  }
+
+  static NotificationDetails _intakeNotificationDetails({
+    required String channelId,
+    String channelName = 'Лекарства',
+    String? channelDescription,
+    bool ongoing = false,
+    bool autoCancel = true,
+  }) {
+    return NotificationDetails(
+      android: AndroidNotificationDetails(
+        channelId,
+        channelName,
+        channelDescription: channelDescription,
+        importance: Importance.max,
+        priority: Priority.max,
+        ongoing: ongoing,
+        autoCancel: autoCancel,
+        actions: const <AndroidNotificationAction>[
+          AndroidNotificationAction(
+            'action_take',
+            '🟢 Принял',
+            showsUserInterface: true,
+            titleColor: Color(0xFF1B5E20),
+          ),
+          AndroidNotificationAction(
+            'action_skip',
+            '🔴 Пропустить',
+            showsUserInterface: false,
+            titleColor: Color(0xFFC62828),
+          ),
+        ],
+      ),
+      iOS: const DarwinNotificationDetails(categoryIdentifier: _darwinCategoryId),
+    );
+  }
+
+  static Future<String?> _resolveUserName(String userId) async {
+    final trimmed = userId.trim();
+    if (trimmed.isEmpty) return null;
+
+    final cached = _userNameCache[trimmed];
+    if (cached != null) return cached;
+
+    try {
+      final doc = await _firestore.collection('users').doc(trimmed).get();
+      final name = doc.data()?['name'] as String?;
+      final normalized = name?.trim();
+      if (normalized == null || normalized.isEmpty) return null;
+      _userNameCache[trimmed] = normalized;
+      return normalized;
+    } catch (e) {
+      log('Failed to resolve user name for $trimmed: $e');
+      return null;
+    }
+  }
 
   static Future<String?> resolveMedicationOwnerId(String medId) async {
     final medDoc = await _firestore.collection('medications').doc(medId).get();
@@ -265,11 +339,36 @@ class NotificationService {
   Future<void> init() async {
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
-    const DarwinInitializationSettings iosSettings =
-        DarwinInitializationSettings();
+
+    final List<DarwinNotificationCategory> darwinNotificationCategories =
+        <DarwinNotificationCategory>[
+      DarwinNotificationCategory(
+        _darwinCategoryId,
+        actions: <DarwinNotificationAction>[
+          DarwinNotificationAction.plain(
+            'action_take',
+            '🟢 Принял',
+            options: <DarwinNotificationActionOption>{
+              DarwinNotificationActionOption.foreground,
+            },
+          ),
+          DarwinNotificationAction.plain(
+            'action_skip',
+            '🔴 Пропустить',
+            options: <DarwinNotificationActionOption>{
+              DarwinNotificationActionOption.destructive,
+            },
+          ),
+        ],
+      ),
+    ];
+
+    final DarwinInitializationSettings iosSettings = DarwinInitializationSettings(
+      notificationCategories: darwinNotificationCategories,
+    );
 
     await notifications.initialize(
-      const InitializationSettings(android: androidSettings, iOS: iosSettings),
+      InitializationSettings(android: androidSettings, iOS: iosSettings),
       onDidReceiveNotificationResponse: (response) =>
           foregroundNotificationHandler(response, ref),
       onDidReceiveBackgroundNotificationResponse: notificationBackgroundHandler,
@@ -389,6 +488,15 @@ class NotificationService {
         final recordId = data['intakeRecordId'] as String?;
         if (medId == null || recordId == null) continue;
 
+        // Если формат уведомления устарел (после изменений в UI/тексте),
+        // отменяем и дадим расписателю создать новое уведомление.
+        final formatVersion = data['formatVersion'] as String?;
+        if (formatVersion != _intakePayloadVersion) {
+          await notifications.cancel(req.id);
+          cancelledCount++;
+          continue;
+        }
+
         final key = '${medId}_$recordId';
         if (requiredEntries.containsKey(key)) {
           if (pendingKeys.contains(key)) {
@@ -409,7 +517,6 @@ class NotificationService {
         await _scheduleIntakeNotification(
           med: entry.value.med,
           record: entry.value.record,
-          isWard: entry.value.med.userId != currentUserId,
         );
         scheduledCount++;
       }
@@ -455,7 +562,6 @@ class NotificationService {
   static Future<void> _scheduleIntakeNotification({
     required Medication med,
     required IntakeRecord record,
-    required bool isWard,
   }) async {
     if (record.id == null) return;
 
@@ -463,40 +569,31 @@ class NotificationService {
     final payloadData = jsonEncode({
       'medId': med.id,
       'intakeRecordId': record.id,
+      'formatVersion': _intakePayloadVersion,
     });
     final notificationId = await getNextNotificationId();
-    final title =
-        '${med.name} - ${med.dosage} ${med.dosageType.shortLabel}';
-    final body = isWard
-        ? 'Подопечный: время принимать лекарство'
-        : 'Время принимать лекарство';
+
+    // Формат уведомления:
+    // 1) "Лекарство - дозировка"
+    // 2) "кому: <имя>" + "когда: <HH:mm>"
+    final ownerName = await _resolveUserName(med.userId) ?? 'Профиль';
+    final intakeTime = tz.TZDateTime.from(record.scheduledDateTime, tz.local);
+    final title = _formatIntakeNotificationTitle(
+      medicationName: med.name,
+      dosage: med.dosage,
+      dosageLabel: med.dosageType.shortLabel,
+    );
+    final body = _formatIntakeNotificationBody(
+      profileName: ownerName,
+      intakeTime: intakeTime,
+    );
 
     await notifications.zonedSchedule(
       notificationId,
       title,
       body,
       scheduledDate,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'med_channel',
-          'Лекарства',
-          importance: Importance.max,
-          priority: Priority.max,
-          actions: <AndroidNotificationAction>[
-            AndroidNotificationAction(
-              'action_take',
-              'Принял',
-              showsUserInterface: true,
-            ),
-            AndroidNotificationAction(
-              'action_skip',
-              'Пропустить',
-              showsUserInterface: false,
-            ),
-          ],
-        ),
-        iOS: DarwinNotificationDetails(),
-      ),
+      _intakeNotificationDetails(channelId: 'med_channel'),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       payload: payloadData,
     );
@@ -633,49 +730,35 @@ class NotificationService {
   // Временная функция для тестирования мгновенных уведомлений
   static Future<void> showInstantNotification({
     required int id,
-    required String title,
-    required String body,
+    required String profileName,
+    String medicationName = 'Аспирин',
+    double dosage = 1,
+    String dosageLabel = 'таб.',
+    DateTime? intakeTime,
   }) async {
-    final pending = await notifications.pendingNotificationRequests();
-    final jsonRecord = IntakeRecord(
-      id: 'zo9nPVQjqXsFLbPwTPfJ',
-      medicationId: 'GEPejOCRiiiQswkv8Nkq',
-      isTaken: false,
-      scheduledDateTime: DateTime.parse('2026-02-11T10:45:00.000Z'),
+    final scheduledAt = intakeTime ?? DateTime.now();
+    final title = _formatIntakeNotificationTitle(
+      medicationName: medicationName,
+      dosage: dosage,
+      dosageLabel: dosageLabel,
+    );
+    final body = _formatIntakeNotificationBody(
+      profileName: profileName,
+      intakeTime: scheduledAt,
     );
     final payloadData = jsonEncode({
       'medId': 'GEPejOCRiiiQswkv8Nkq',
-      'intakeRecordId': jsonRecord.id,
+      'intakeRecordId': 'zo9nPVQjqXsFLbPwTPfJ',
+      'formatVersion': _intakePayloadVersion,
     });
-    for (var n in pending) {
-      log(
-        'ID: ${n.id}, Title: ${n.title}, Body: ${n.body}, Payload: ${n.payload}',
-      );
-    }
+
     await notifications.show(
       id,
       title,
       body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'instant_notification_channel_id',
-          'Лекарства',
-          importance: Importance.max,
-          priority: Priority.max,
-          actions: <AndroidNotificationAction>[
-            AndroidNotificationAction(
-              'action_take',
-              'Принял',
-              showsUserInterface: true,
-            ),
-            AndroidNotificationAction(
-              'action_skip',
-              'Пропустить',
-              showsUserInterface: false,
-            ),
-          ],
-        ),
-        iOS: DarwinNotificationDetails(),
+      _intakeNotificationDetails(
+        channelId: 'instant_notification_channel_id',
+        channelDescription: 'Мгновенные уведомления о приёме лекарств',
       ),
       payload: payloadData,
     );
@@ -684,42 +767,40 @@ class NotificationService {
   // Временная функция для тестирования запланированных уведомлений
   static Future<void> scheduleReminderNotification({
     required int id,
-    required String title,
-    required String body,
+    required String profileName,
+    String medicationName = 'Аспирин',
+    double dosage = 1,
+    String dosageLabel = 'таб.',
+    DateTime? intakeTime,
   }) async {
-    final currentDateTime = DateTime.now().add(Duration(seconds: 3));
-    final scheduledDate = tz.TZDateTime.from(currentDateTime, tz.local);
+    final scheduledAt = intakeTime ?? DateTime.now().add(const Duration(seconds: 3));
+    final scheduledDate = tz.TZDateTime.from(scheduledAt, tz.local);
+    final title = _formatIntakeNotificationTitle(
+      medicationName: medicationName,
+      dosage: dosage,
+      dosageLabel: dosageLabel,
+    );
+    final body = _formatIntakeNotificationBody(
+      profileName: profileName,
+      intakeTime: scheduledAt,
+    );
     final payloadData = jsonEncode({
       'medId': 'GEPejOCRiiiQswkv8Nkq',
-      'intakeRecordId': "zo9nPVQjqXsFLbPwTPfJ",
+      'intakeRecordId': 'zo9nPVQjqXsFLbPwTPfJ',
+      'formatVersion': _intakePayloadVersion,
     });
+
     await notifications.zonedSchedule(
       id,
       title,
       body,
       scheduledDate,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'reminder_notification_channel_id',
-          'Напоминания',
-          importance: Importance.max,
-          priority: Priority.max,
-          autoCancel: false,
-          ongoing: true,
-          actions: <AndroidNotificationAction>[
-            AndroidNotificationAction(
-              'action_take',
-              'Принял',
-              showsUserInterface: true,
-            ),
-            AndroidNotificationAction(
-              'action_skip',
-              'Пропустить',
-              showsUserInterface: false,
-            ),
-          ],
-        ),
-        iOS: DarwinNotificationDetails(),
+      _intakeNotificationDetails(
+        channelId: 'reminder_notification_channel_id',
+        channelName: 'Напоминания',
+        channelDescription: 'Запланированные напоминания о приёме лекарств',
+        ongoing: true,
+        autoCancel: false,
       ),
       payload: payloadData,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
