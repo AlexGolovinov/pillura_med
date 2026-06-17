@@ -153,21 +153,6 @@ class WelcomeIllustration extends StatelessWidget {
             ],
           ),
         ),
-        const Positioned(
-          right: 12,
-          bottom: 52,
-          child: _FloatingPlus(size: 54, opacity: 1),
-        ),
-        const Positioned(
-          right: -18,
-          bottom: -18,
-          child: _FloatingPlus(size: 76, opacity: 0.18),
-        ),
-        const Positioned(
-          right: 32,
-          top: 0,
-          child: _FloatingPlus(size: 30, opacity: 0.32),
-        ),
       ],
     );
   }
@@ -449,29 +434,6 @@ class HistoryIllustration extends StatelessWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _FloatingPlus extends StatelessWidget {
-  final double size;
-  final double opacity;
-
-  const _FloatingPlus({required this.size, required this.opacity});
-
-  @override
-  Widget build(BuildContext context) {
-    return Opacity(
-      opacity: opacity,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: const BoxDecoration(
-          color: OnboardingSlide.brandColor,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(Icons.add_rounded, color: Colors.white, size: size * 0.5),
       ),
     );
   }
