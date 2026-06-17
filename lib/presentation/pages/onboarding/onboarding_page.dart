@@ -147,7 +147,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage>
               ],
             ),
             child: const Icon(
-              Icons.back_hand_outlined,
+              Icons.touch_app_outlined,
               size: 44,
               color: OnboardingSlide.brandColor,
             ),
