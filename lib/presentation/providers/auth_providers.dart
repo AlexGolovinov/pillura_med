@@ -4,8 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/auth_user.dart';
+import '../../domain/entities/google_sign_in_pending.dart';
 import '../../domain/entities/linked_user_access.dart';
 import '../../domain/enums/ward_profile_icon.dart';
+import '../../domain/errors/account_link_required_exception.dart';
 
 import '../../domain/repositories/auth_repository.dart';
 import 'repository_provider.dart';
@@ -110,6 +112,101 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
       _setTransientError(l);
     }, (_) {});
     //AsyncValue.data(user.fold((l) => null, (r) => r));
+  }
+
+  Future<GoogleSignInPending?> acquireGoogleSignInPending() async {
+    final result = await _repo.acquireGoogleSignInPending();
+    return result.fold((error) {
+      _setTransientError(error);
+      return null;
+    }, (pending) => pending);
+  }
+
+  Future<AuthUser?> completeGoogleSignIn(GoogleSignInPending pending) async {
+    final result = await _repo.completeGoogleSignIn(pending);
+    return result.fold((error) {
+      if (error is AccountLinkRequiredException) {
+        throw error;
+      }
+      if (error is FirebaseAuthException) {
+        _setTransientError(
+          'Ошибка входа через Google: ${error.message ?? 'неизвестная ошибка'}',
+        );
+        return null;
+      }
+      _setTransientError(error);
+      return null;
+    }, (user) {
+      if (user != null) {
+        state = AsyncValue.data(user);
+      }
+      return user;
+    });
+  }
+
+  Future<AuthUser?> signInWithGoogle() async {
+    final result = await _repo.signInWithGoogle();
+
+    return result.fold((error) {
+      if (error is AccountLinkRequiredException) {
+        throw error;
+      }
+      if (error is FirebaseAuthException) {
+        final userMessage = switch (error.code) {
+          'network-request-failed' =>
+            'Нет подключения к интернету. Проверьте сеть и попробуйте снова.',
+          'popup-closed-by-user' || 'cancelled-popup-request' => '',
+          _ =>
+            'Ошибка входа через Google: ${error.message ?? 'неизвестная ошибка'}',
+        };
+        if (userMessage.isNotEmpty) {
+          _setTransientError(userMessage);
+        }
+        return null;
+      }
+      _setTransientError(error);
+      return null;
+    }, (user) {
+      if (user != null) {
+        state = AsyncValue.data(user);
+      }
+      return user;
+    });
+  }
+
+  Future<void> linkGoogleWithPassword({
+    required String email,
+    required String password,
+    required AuthCredential pendingGoogleCredential,
+  }) async {
+    final result = await _repo.linkGoogleWithPassword(
+      email: email,
+      password: password,
+      pendingGoogleCredential: pendingGoogleCredential,
+    );
+    result.fold((error) {
+      if (error is FirebaseAuthException) {
+        final userMessage = switch (error.code) {
+          'invalid-credential' ||
+          'user-not-found' ||
+          'wrong-password' =>
+            'Неверный пароль',
+          'credential-already-in-use' =>
+            'Google уже привязан к другому аккаунту',
+          'provider-already-linked' =>
+            'Google уже привязан к этому аккаунту',
+          _ =>
+            'Ошибка связывания аккаунтов: ${error.message ?? 'неизвестная ошибка'}',
+        };
+        _setTransientError(userMessage);
+        return;
+      }
+      _setTransientError(error);
+    }, (user) {
+      if (user != null) {
+        state = AsyncValue.data(user);
+      }
+    });
   }
 
   Future<AuthUser> registerWithEmail(

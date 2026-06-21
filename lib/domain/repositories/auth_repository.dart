@@ -1,4 +1,6 @@
 import 'package:dartz/dartz.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pillura_med/domain/entities/google_sign_in_pending.dart';
 import 'package:pillura_med/domain/entities/auth_user.dart';
 import 'package:pillura_med/domain/entities/linked_user_access.dart';
 import 'package:pillura_med/domain/entities/share_invite.dart';
@@ -22,6 +24,16 @@ abstract class AuthRepository {
     String email,
     String password,
   );
+  Future<Either<dynamic, AuthUser?>> signInWithGoogle();
+  Future<Either<dynamic, GoogleSignInPending?>> acquireGoogleSignInPending();
+  Future<Either<dynamic, AuthUser?>> completeGoogleSignIn(
+    GoogleSignInPending pending,
+  );
+  Future<Either<dynamic, AuthUser?>> linkGoogleWithPassword({
+    required String email,
+    required String password,
+    required AuthCredential pendingGoogleCredential,
+  });
   Future<Either<dynamic, void>> grantAccessLink({
     required String outUserId,
     required String inUserId,

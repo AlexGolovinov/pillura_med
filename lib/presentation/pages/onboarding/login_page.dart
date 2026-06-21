@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:pillura_med/core/app_snackbar.dart';
 import 'package:pillura_med/core/listen_errors.dart';
+import 'package:pillura_med/presentation/utils/google_sign_in_flow.dart';
 import 'package:pillura_med/presentation/widgets/auth_form_widgets.dart';
 
 import '../../providers/auth_providers.dart';
@@ -22,6 +22,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   String? _password;
   bool _obscurePassword = true;
   bool _isSubmitting = false;
+  bool _isGoogleSubmitting = false;
+
+  bool get _isBusy => _isSubmitting || _isGoogleSubmitting;
 
   @override
   void dispose() {
@@ -52,8 +55,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
   }
 
-  void _showGoogleUnavailable() =>
-      AppSnackBar.show(context, 'Вход через Google скоро будет доступен');
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isGoogleSubmitting = true);
+    try {
+      await handleGoogleSignIn(context: context, ref: ref);
+    } finally {
+      if (mounted) setState(() => _isGoogleSubmitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,7 +104,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submit,
+                  onPressed: _isBusy ? null : _submit,
                   child: LoadingButtonContent(
                     isLoading: _isSubmitting,
                     label: 'Войти',
@@ -105,8 +114,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 const OrDivider(),
                 const SizedBox(height: 28),
                 GoogleAuthButton(
-                  isLoading: false,
-                  onPressed: _isSubmitting ? null : _showGoogleUnavailable,
+                  isLoading: _isGoogleSubmitting,
+                  onPressed: _isBusy ? null : _signInWithGoogle,
                 ),
               ],
             ),

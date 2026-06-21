@@ -3,20 +3,30 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:google_sign_in/google_sign_in.dart';
 
+import '../../core/google_sign_in_factory.dart';
+import '../../core/auth_email_lookup.dart';
+import '../../domain/entities/google_sign_in_pending.dart';
 import '../../domain/entities/auth_user.dart';
 import '../../domain/entities/linked_user_access.dart';
 import '../../domain/entities/share_invite.dart';
 import '../../domain/entities/user_link.dart';
 import '../../domain/enums/ward_profile_icon.dart';
+import '../../domain/errors/account_link_required_exception.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../core/input_limits.dart';
 
 class FirebaseAuthRepository implements AuthRepository {
   final fb.FirebaseAuth _firebaseAuth;
   final FirebaseFirestore _firestore;
+  final GoogleSignIn _googleSignIn;
 
-  FirebaseAuthRepository(this._firebaseAuth, this._firestore);
+  FirebaseAuthRepository(
+    this._firebaseAuth,
+    this._firestore, [
+    GoogleSignIn? googleSignIn,
+  ]) : _googleSignIn = googleSignIn ?? createGoogleSignIn();
 
   @override
   Stream<Either<dynamic, AuthUser>> authStateChanges() {
@@ -459,8 +469,237 @@ class FirebaseAuthRepository implements AuthRepository {
 
   @override
   Future<Either<dynamic, void>> signOut() async {
-    await _firebaseAuth.signOut();
+    await Future.wait([
+      _googleSignIn.signOut(),
+      _firebaseAuth.signOut(),
+    ]);
     return right(null);
+  }
+
+  @override
+  Future<Either<dynamic, GoogleSignInPending?>> acquireGoogleSignInPending() async {
+    try {
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        return right(null);
+      }
+
+      final googleEmail = googleUser.email.trim();
+      if (googleEmail.isEmpty) {
+        return left(Exception('Google-аккаунт не содержит email'));
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final credential = fb.GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      return right(
+        GoogleSignInPending(
+          email: googleEmail,
+          credential: credential,
+          displayName: googleUser.displayName?.trim(),
+        ),
+      );
+    } catch (e) {
+      return left(e);
+    }
+  }
+
+  @override
+  Future<Either<dynamic, AuthUser?>> completeGoogleSignIn(
+    GoogleSignInPending pending,
+  ) async {
+    try {
+      final currentUser = _firebaseAuth.currentUser;
+      final isAnonymous = currentUser?.isAnonymous ?? false;
+
+      final userCredential = await _linkOrSignInWithGoogleCredential(
+        credential: pending.credential,
+        googleEmail: pending.email,
+        linkToCurrentUser: isAnonymous,
+      );
+
+      return _finalizeGoogleSignIn(
+        userCredential.user,
+        displayName: pending.displayName,
+      );
+    } on AccountLinkRequiredException catch (e) {
+      return left(e);
+    } catch (e) {
+      return left(e);
+    }
+  }
+
+  @override
+  Future<Either<dynamic, AuthUser?>> signInWithGoogle() async {
+    try {
+      final pendingResult = await acquireGoogleSignInPending();
+      return await pendingResult.fold(
+        (error) async => left(error),
+        (pending) async {
+          if (pending == null) {
+            return right(null);
+          }
+
+          final providers = await lookupEmailAuthProviders(pending.email);
+          if (providers.needsGoogleLinking) {
+            return left(
+              AccountLinkRequiredException(
+                email: pending.email,
+                pendingCredential: pending.credential,
+              ),
+            );
+          }
+
+          return completeGoogleSignIn(pending);
+        },
+      );
+    } catch (e) {
+      return left(e);
+    }
+  }
+
+  @override
+  Future<Either<dynamic, AuthUser?>> linkGoogleWithPassword({
+    required String email,
+    required String password,
+    required fb.AuthCredential pendingGoogleCredential,
+  }) async {
+    try {
+      // Сбрасываем возможную Google-only сессию, чтобы войти в email/пароль аккаунт.
+      await _firebaseAuth.signOut();
+
+      await _firebaseAuth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+
+      final linkedCredential = await _firebaseAuth.currentUser!
+          .linkWithCredential(pendingGoogleCredential);
+
+      return _finalizeGoogleSignIn(linkedCredential.user);
+    } on fb.FirebaseAuthException catch (e) {
+      if (e.code == 'provider-already-linked') {
+        return _finalizeGoogleSignIn(_firebaseAuth.currentUser);
+      }
+      return left(e);
+    } catch (e) {
+      return left(e);
+    }
+  }
+
+  Future<fb.UserCredential> _linkOrSignInWithGoogleCredential({
+    required fb.AuthCredential credential,
+    required String? googleEmail,
+    required bool linkToCurrentUser,
+  }) async {
+    try {
+      if (linkToCurrentUser) {
+        final currentUser = _firebaseAuth.currentUser;
+        if (currentUser == null || !currentUser.isAnonymous) {
+          return await _firebaseAuth.signInWithCredential(credential);
+        }
+        return await currentUser.linkWithCredential(credential);
+      }
+      return await _firebaseAuth.signInWithCredential(credential);
+    } on fb.FirebaseAuthException catch (e) {
+      final linkRequired = _asAccountLinkRequired(
+        e,
+        fallbackCredential: credential,
+        fallbackEmail: googleEmail,
+      );
+      if (linkRequired != null) {
+        throw linkRequired;
+      }
+
+      if (linkToCurrentUser &&
+          e.code == 'credential-already-in-use' &&
+          googleEmail != null &&
+          googleEmail.isNotEmpty) {
+        throw AccountLinkRequiredException(
+          email: googleEmail,
+          pendingCredential: credential,
+        );
+      }
+
+      rethrow;
+    }
+  }
+
+  AccountLinkRequiredException? _asAccountLinkRequired(
+    fb.FirebaseAuthException error, {
+    required fb.AuthCredential fallbackCredential,
+    required String? fallbackEmail,
+  }) {
+    const linkRequiredCodes = {
+      'account-exists-with-different-credential',
+      'email-already-in-use',
+    };
+
+    if (!linkRequiredCodes.contains(error.code)) {
+      return null;
+    }
+
+    final email = error.email ?? fallbackEmail;
+    if (email == null || email.isEmpty) {
+      return null;
+    }
+
+    return AccountLinkRequiredException(
+      email: email,
+      pendingCredential: error.credential ?? fallbackCredential,
+    );
+  }
+
+  Future<Either<dynamic, AuthUser?>> _finalizeGoogleSignIn(
+    fb.User? user, {
+    String? displayName,
+  }) async {
+    if (user == null) {
+      return left(Exception('Не удалось войти через Google'));
+    }
+
+    final normalizedName = displayName?.trim();
+    final defaultName = normalizedName != null && normalizedName.isNotEmpty
+        ? normalizedName
+        : 'Аноним';
+
+    final userResult = await getOrCreateUser(user, name: defaultName);
+    return await userResult.fold<Future<Either<dynamic, AuthUser?>>>(
+      (l) async => left(l),
+      (authUser) async {
+        if (normalizedName == null || normalizedName.isEmpty) {
+          return right(authUser);
+        }
+
+        final shouldUpdateName =
+            authUser.name == null ||
+            authUser.name!.isEmpty ||
+            authUser.name == 'Аноним';
+
+        if (!shouldUpdateName) {
+          return right(authUser);
+        }
+
+        final updatedUser = AuthUser(
+          uid: authUser.uid,
+          email: authUser.email ?? user.email,
+          name: normalizedName,
+          isAnonymous: false,
+          isAuthenticated: true,
+          isWard: authUser.isWard,
+        );
+
+        await _firestore
+            .collection('users')
+            .doc(updatedUser.uid)
+            .set(updatedUser.toJson(), SetOptions(merge: true));
+
+        return right(updatedUser);
+      },
+    );
   }
 
   @override

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pillura_med/core/app_snackbar.dart';
 import 'package:pillura_med/core/listen_errors.dart';
+import 'package:pillura_med/presentation/utils/google_sign_in_flow.dart';
 import 'package:pillura_med/presentation/widgets/auth_form_widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/auth_providers.dart';
@@ -54,7 +55,7 @@ class _AuthorizationPageState extends ConsumerState<AuthorizationPage> {
   Future<void> _signInWithGoogle() async {
     setState(() => _isGoogleSubmitting = true);
     try {
-      AppSnackBar.show(context, 'Вход через Google скоро будет доступен');
+      await handleGoogleSignIn(context: context, ref: ref);
     } finally {
       if (mounted) setState(() => _isGoogleSubmitting = false);
     }

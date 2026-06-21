@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:pillura_med/core/app_snackbar.dart';
 import 'package:pillura_med/core/input_limits.dart';
 import 'package:pillura_med/core/listen_errors.dart';
+import 'package:pillura_med/presentation/utils/google_sign_in_flow.dart';
 import 'package:pillura_med/presentation/widgets/auth_form_widgets.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
 
@@ -29,6 +29,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isSubmitting = false;
+  bool _isGoogleSubmitting = false;
+
+  bool get _isBusy => _isSubmitting || _isGoogleSubmitting;
 
   @override
   void dispose() {
@@ -61,8 +64,14 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     }
   }
 
-  void _showGoogleUnavailable() =>
-      AppSnackBar.show(context, 'Вход через Google скоро будет доступен');
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isGoogleSubmitting = true);
+    try {
+      await handleGoogleSignIn(context: context, ref: ref);
+    } finally {
+      if (mounted) setState(() => _isGoogleSubmitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -149,7 +158,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submit,
+                  onPressed: _isBusy ? null : _submit,
                   child: LoadingButtonContent(
                     isLoading: _isSubmitting,
                     label: 'Готово',
@@ -159,8 +168,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 const OrDivider(),
                 const SizedBox(height: 28),
                 GoogleAuthButton(
-                  isLoading: false,
-                  onPressed: _isSubmitting ? null : _showGoogleUnavailable,
+                  isLoading: _isGoogleSubmitting,
+                  onPressed: _isBusy ? null : _signInWithGoogle,
                 ),
               ],
             ),
