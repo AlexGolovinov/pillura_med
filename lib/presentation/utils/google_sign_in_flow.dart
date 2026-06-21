@@ -38,30 +38,40 @@ class GoogleSignInFlowController {
   });
 
   Future<void> run() async {
-    final pending = await acquirePending();
-    if (pending == null) return;
+  final pending = await acquirePending();
+  if (pending == null) return;
 
-    final providers = await lookupProviders(pending.email);
-    if (providers.hasGoogleProvider) {
-      await completeGoogleSignIn(pending);
-      return;
-    }
+  // Получаем информацию о существующих провайдерах для этого email
+  final providers = await lookupProviders(pending.email);
 
-    if (!providers.registered && providers.signInMethods.isEmpty) {
-      try {
-        await completeGoogleSignIn(pending);
-        return;
-      } on AccountLinkRequiredException {
-        await _runDialog(pending: pending, allowGoogleOnly: false);
-        return;
-      }
-    }
+  // 1. Сценарий: Аккаунт уже существует и у него УЖЕ привязан Google
+  if (providers.hasGoogleProvider) {
+    await completeGoogleSignIn(pending);
+    return;
+  }
 
+  // 2. Сценарий: Аккаунт существует, но там ТОЛЬКО Email/Пароль (нет Google)
+  if (providers.registered && providers.signInMethods.contains('password')) {
+    // Принудительно вызываем диалог. Передаем allowGoogleOnly: false,
+    // потому что войти "просто через гугл" нельзя — нужно сначала связать с паролем!
     await _runDialog(
       pending: pending,
-      allowGoogleOnly: !providers.needsGoogleLinking,
+      allowGoogleOnly: false, 
     );
+    return;
   }
+
+  // 3. Сценарий: Абсолютно новый пользователь (нет ни пароля, ни Google)
+  if (!providers.registered || providers.signInMethods.isEmpty) {
+    try {
+      await completeGoogleSignIn(pending);
+      return;
+    } on AccountLinkRequiredException {
+      await _runDialog(pending: pending, allowGoogleOnly: false);
+      return;
+    }
+  }
+}
 
   Future<void> _runDialog({
     required GoogleSignInPending pending,
