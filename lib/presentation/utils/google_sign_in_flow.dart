@@ -8,19 +8,21 @@ import 'package:pillura_med/presentation/providers/auth_providers.dart';
 import 'package:pillura_med/presentation/widgets/link_account_password_dialog.dart';
 
 typedef AcquireGooglePending = Future<GoogleSignInPending?> Function();
-typedef LookupGoogleEmailProviders = Future<EmailAuthProvidersLookup> Function(
-  String email,
-);
-typedef ShowGoogleLinkChoice = Future<GoogleLinkDialogResult?> Function({
-  required String email,
-  required bool allowGoogleOnly,
-});
-typedef CompleteGoogleSignIn = Future<void> Function(GoogleSignInPending pending);
-typedef LinkGoogleWithPassword = Future<void> Function({
-  required String email,
-  required String password,
-  required AuthCredential pendingGoogleCredential,
-});
+typedef LookupGoogleEmailProviders =
+    Future<EmailAuthProvidersLookup> Function(String email);
+typedef ShowGoogleLinkChoice =
+    Future<GoogleLinkDialogResult?> Function({
+      required String email,
+      required bool allowGoogleOnly,
+    });
+typedef CompleteGoogleSignIn =
+    Future<void> Function(GoogleSignInPending pending);
+typedef LinkGoogleWithPassword =
+    Future<void> Function({
+      required String email,
+      required String password,
+      required AuthCredential pendingGoogleCredential,
+    });
 
 class GoogleSignInFlowController {
   final AcquireGooglePending acquirePending;
@@ -38,40 +40,45 @@ class GoogleSignInFlowController {
   });
 
   Future<void> run() async {
-  final pending = await acquirePending();
-  if (pending == null) return;
+    final pending = await acquirePending();
+    if (pending == null) return;
 
-  // Получаем информацию о существующих провайдерах для этого email
-  final providers = await lookupProviders(pending.email);
+    final providers = await lookupProviders(pending.email);
 
-  // 1. Сценарий: Аккаунт уже существует и у него УЖЕ привязан Google
-  if (providers.hasGoogleProvider) {
-    await completeGoogleSignIn(pending);
-    return;
-  }
-
-  // 2. Сценарий: Аккаунт существует, но там ТОЛЬКО Email/Пароль (нет Google)
-  if (providers.registered && providers.signInMethods.contains('password')) {
-    // Принудительно вызываем диалог. Передаем allowGoogleOnly: false,
-    // потому что войти "просто через гугл" нельзя — нужно сначала связать с паролем!
-    await _runDialog(
-      pending: pending,
-      allowGoogleOnly: false, 
-    );
-    return;
-  }
-
-  // 3. Сценарий: Абсолютно новый пользователь (нет ни пароля, ни Google)
-  if (!providers.registered || providers.signInMethods.isEmpty) {
-    try {
+    if (providers.hasGoogleProvider) {
       await completeGoogleSignIn(pending);
       return;
-    } on AccountLinkRequiredException {
-      await _runDialog(pending: pending, allowGoogleOnly: false);
+    }
+
+    if (_requiresPasswordLink(providers)) {
+      await _showPasswordLinkDialog(pending);
       return;
     }
+
+    if (_canTryGoogleOnlySignIn(providers)) {
+      await _completeOrAskPassword(pending);
+    }
   }
-}
+
+  bool _requiresPasswordLink(EmailAuthProvidersLookup providers) {
+    return providers.registered && providers.signInMethods.contains('password');
+  }
+
+  bool _canTryGoogleOnlySignIn(EmailAuthProvidersLookup providers) {
+    return !providers.registered || providers.signInMethods.isEmpty;
+  }
+
+  Future<void> _completeOrAskPassword(GoogleSignInPending pending) async {
+    try {
+      await completeGoogleSignIn(pending);
+    } on AccountLinkRequiredException {
+      await _showPasswordLinkDialog(pending);
+    }
+  }
+
+  Future<void> _showPasswordLinkDialog(GoogleSignInPending pending) {
+    return _runDialog(pending: pending, allowGoogleOnly: false);
+  }
 
   Future<void> _runDialog({
     required GoogleSignInPending pending,
@@ -87,11 +94,7 @@ class GoogleSignInFlowController {
     }
 
     if (dialogResult.choice == GoogleLinkDialogChoice.googleOnly) {
-      try {
-        await completeGoogleSignIn(pending);
-      } on AccountLinkRequiredException {
-        await _runDialog(pending: pending, allowGoogleOnly: false);
-      }
+      await _completeOrAskPassword(pending);
       return;
     }
 
@@ -114,10 +117,7 @@ Future<void> handleGoogleSignIn({
   await GoogleSignInFlowController(
     acquirePending: notifier.acquireGoogleSignInPending,
     lookupProviders: lookupEmailAuthProviders,
-    showChoice: ({
-      required String email,
-      required bool allowGoogleOnly,
-    }) {
+    showChoice: ({required String email, required bool allowGoogleOnly}) {
       if (!context.mounted) return Future.value(null);
       return showLinkAccountPasswordDialog(
         context: context,
@@ -126,16 +126,17 @@ Future<void> handleGoogleSignIn({
       );
     },
     completeGoogleSignIn: notifier.completeGoogleSignIn,
-    linkGoogleWithPassword: ({
-      required String email,
-      required String password,
-      required AuthCredential pendingGoogleCredential,
-    }) {
-      return notifier.linkGoogleWithPassword(
-        email: email,
-        password: password,
-        pendingGoogleCredential: pendingGoogleCredential,
-      );
-    },
+    linkGoogleWithPassword:
+        ({
+          required String email,
+          required String password,
+          required AuthCredential pendingGoogleCredential,
+        }) {
+          return notifier.linkGoogleWithPassword(
+            email: email,
+            password: password,
+            pendingGoogleCredential: pendingGoogleCredential,
+          );
+        },
   ).run();
 }
