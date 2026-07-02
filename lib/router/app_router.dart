@@ -7,6 +7,7 @@ import 'package:pillura_med/data/models/share_medications_route_data.dart';
 import 'package:pillura_med/presentation/pages/account_page.dart';
 import 'package:pillura_med/presentation/pages/add_medication.dart';
 import 'package:pillura_med/presentation/pages/add_person/add_ward.dart';
+import 'package:pillura_med/presentation/pages/add_person/add_by_code_page.dart';
 import 'package:pillura_med/presentation/pages/add_person/menu_add_person.dart';
 import 'package:pillura_med/presentation/pages/add_person/share_medications_page.dart';
 import 'package:pillura_med/presentation/pages/landing.dart';
@@ -168,6 +169,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 name: 'MenuAddPerson',
                 builder: (context, state) => const MenuAddPerson(),
                 routes: [
+                  GoRoute(
+                    path: 'by-code',
+                    name: 'AddByCode',
+                    builder: (context, state) => const AddByCodePage(),
+                  ),
                   GoRoute(
                     path: 'ward',
                     name: 'AddWard',

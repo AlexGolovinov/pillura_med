@@ -382,6 +382,66 @@ class FirebaseAuthRepository implements AuthRepository {
     }
   }
 
+  @override
+  Future<Either<dynamic, void>> acceptShareInviteCode({
+    required String code,
+    required String currentUserId,
+  }) async {
+    try {
+      final normalizedCode = code.trim().toUpperCase();
+      final normalizedCurrentUserId = currentUserId.trim();
+      if (normalizedCode.isEmpty || normalizedCurrentUserId.isEmpty) {
+        return left(Exception('Код и пользователь обязательны'));
+      }
+
+      final lookupSnapshot = await _firestore
+          .collection('share_invites_lookup')
+          .doc(normalizedCode)
+          .get();
+      if (!lookupSnapshot.exists) {
+        return left(Exception('Код приглашения не найден'));
+      }
+
+      final data = lookupSnapshot.data();
+      if (data == null) {
+        return left(Exception('Код приглашения поврежден'));
+      }
+
+      final profileUserId = (data['profileUserId'] as String?)?.trim() ?? '';
+      if (profileUserId.isEmpty) {
+        return left(Exception('Код приглашения поврежден'));
+      }
+      if (profileUserId == normalizedCurrentUserId) {
+        return left(Exception('Нельзя подключить собственный профиль'));
+      }
+
+      final existingActiveLink = await _firestore
+          .collection('user_links')
+          .where('outUserId', isEqualTo: profileUserId)
+          .where('inUserId', isEqualTo: normalizedCurrentUserId)
+          .where('status', isEqualTo: UserLinkStatus.active.name)
+          .limit(1)
+          .get();
+      if (existingActiveLink.docs.isNotEmpty) {
+        return left(Exception('Профиль уже добавлен ранее'));
+      }
+
+      final canEdit = data['canEdit'] == true;
+      final permission = canEdit
+          ? UserLinkPermission.editor
+          : UserLinkPermission.viewer;
+
+      return grantAccessLink(
+        outUserId: profileUserId,
+        inUserId: normalizedCurrentUserId,
+        permission: permission,
+        type: UserLinkType.share,
+      );
+    } catch (e) {
+      return left(e);
+    }
+  }
+
   String _buildInviteCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final random = Random.secure();

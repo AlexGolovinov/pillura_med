@@ -47,10 +47,7 @@ class MenuAddPerson extends ConsumerWidget {
                     AppSnackBar.show(context, restrictedMessage);
                     return;
                   }
-                  AppSnackBar.show(
-                    context,
-                    'Ввод кода или сканирование QR — в разработке',
-                  );
+                  context.push('/add/by-code');
                 },
               ),
               const SizedBox(height: 16),

@@ -62,6 +62,10 @@ abstract class AuthRepository {
     required String generatedByUserId,
     required bool canEdit,
   });
+  Future<Either<dynamic, void>> acceptShareInviteCode({
+    required String code,
+    required String currentUserId,
+  });
   Future<Either<dynamic, void>> signOut();
   Future<Either<dynamic, AuthUser>> updateDisplayName(String name);
   Future<Either<dynamic, void>> changePassword({
