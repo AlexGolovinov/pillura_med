@@ -63,4 +63,9 @@ abstract class AuthRepository {
     required bool canEdit,
   });
   Future<Either<dynamic, void>> signOut();
+  Future<Either<dynamic, AuthUser>> updateDisplayName(String name);
+  Future<Either<dynamic, void>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  });
 }

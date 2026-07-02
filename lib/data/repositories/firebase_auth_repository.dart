@@ -477,6 +477,98 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<Either<dynamic, AuthUser>> updateDisplayName(String name) async {
+    try {
+      final user = _firebaseAuth.currentUser;
+      if (user == null) {
+        return left(Exception('Пользователь не авторизован'));
+      }
+
+      final normalizedName = name.trim();
+      if (normalizedName.isEmpty) {
+        return left(Exception('Имя не может быть пустым'));
+      }
+      if (normalizedName.length > kPersonNameMaxLength) {
+        return left(
+          Exception('Имя не должно быть длиннее $kPersonNameMaxLength символов'),
+        );
+      }
+
+      await user.updateDisplayName(normalizedName);
+
+      final snapshot = await _firestore.collection('users').doc(user.uid).get();
+      final existing = snapshot.exists
+          ? AuthUser.fromJson(snapshot.data()!)
+          : AuthUser(
+              uid: user.uid,
+              email: user.email,
+              isAnonymous: user.isAnonymous,
+              isAuthenticated: true,
+            );
+
+      final updatedUser = AuthUser(
+        uid: user.uid,
+        email: existing.email ?? user.email,
+        name: normalizedName,
+        isAnonymous: user.isAnonymous,
+        isAuthenticated: true,
+        isWard: existing.isWard,
+      );
+
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .set(updatedUser.toJson(), SetOptions(merge: true));
+
+      return right(updatedUser);
+    } catch (e) {
+      return left(e);
+    }
+  }
+
+  @override
+  Future<Either<dynamic, void>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final user = _firebaseAuth.currentUser;
+      if (user == null) {
+        return left(Exception('Пользователь не авторизован'));
+      }
+
+      final email = user.email;
+      if (email == null || email.isEmpty) {
+        return left(Exception('Email не найден'));
+      }
+
+      final hasPasswordProvider = user.providerData.any(
+        (provider) => provider.providerId == 'password',
+      );
+      if (!hasPasswordProvider) {
+        return left(
+          Exception('Смена пароля недоступна для этого способа входа'),
+        );
+      }
+
+      if (newPassword.length < 6) {
+        return left(Exception('Минимум 6 символов'));
+      }
+
+      final credential = fb.EmailAuthProvider.credential(
+        email: email,
+        password: currentPassword,
+      );
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword);
+
+      return right(null);
+    } catch (e) {
+      return left(e);
+    }
+  }
+
+  @override
   Future<Either<dynamic, GoogleSignInPending?>> acquireGoogleSignInPending() async {
     try {
       final googleUser = await _googleSignIn.signIn();

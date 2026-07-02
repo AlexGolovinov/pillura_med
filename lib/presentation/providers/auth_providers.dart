@@ -273,6 +273,52 @@ class AuthNotifier extends AsyncNotifier<AuthUser> {
     );
   }
 
+  Future<String?> updateDisplayName(String name) async {
+    final currentUser = state.value;
+    if (currentUser == null || !currentUser.isAuthenticated) {
+      return 'Пользователь не авторизован';
+    }
+
+    final result = await _repo.updateDisplayName(name);
+    return result.fold((error) {
+      if (error is FirebaseAuthException) {
+        return 'Не удалось обновить имя: ${error.message ?? 'неизвестная ошибка'}';
+      }
+      return _formatRepoError(error);
+    }, (user) {
+      state = AsyncValue.data(user);
+      return null;
+    });
+  }
+
+  Future<String?> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final currentUser = state.value;
+    if (currentUser == null || !currentUser.isAuthenticated) {
+      return 'Пользователь не авторизован';
+    }
+
+    final result = await _repo.changePassword(
+      currentPassword: currentPassword,
+      newPassword: newPassword,
+    );
+    return result.fold((error) {
+      if (error is FirebaseAuthException) {
+        return switch (error.code) {
+          'invalid-credential' ||
+          'wrong-password' =>
+            'Неверный текущий пароль',
+          'weak-password' => 'Пароль слишком простой. Минимум 6 символов.',
+          _ =>
+            'Не удалось сменить пароль: ${error.message ?? 'неизвестная ошибка'}',
+        };
+      }
+      return _formatRepoError(error);
+    }, (_) => null);
+  }
+
   Future<void> addWard(
     String wardName, {
     WardProfileIcon profileIcon = WardProfileIcon.person,

@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pillura_med/core/app_info.dart';
+import 'package:pillura_med/core/app_snackbar.dart';
 import 'package:pillura_med/core/course_schedule.dart';
 import 'package:pillura_med/core/input_limits.dart';
 import 'package:pillura_med/core/listen_errors.dart';
 import 'package:pillura_med/domain/entities/user_link.dart';
 import 'package:pillura_med/presentation/providers/medication_provider.dart';
+import 'package:pillura_med/presentation/widgets/account_profile_dialogs.dart';
 import 'package:pillura_med/presentation/widgets/input_block.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/auth_providers.dart';
 import '../providers/repository_provider.dart';
@@ -36,6 +39,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
   bool _obscureConfirmPassword = true;
   bool _isSubmitting = false;
   bool _isSigningOut = false;
+  bool _isUpdatingProfile = false;
 
   @override
   void dispose() {
@@ -84,13 +88,64 @@ class _AccountPageState extends ConsumerState<AccountPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    AppSnackBar.show(context, message);
   }
 
-  void _showComingSoonMessage() {
-    _showMessage('Будет доступно в следующем обновлении');
+  Future<void> _editDisplayName(String currentName) async {
+    final newName = await showEditDisplayNameDialog(
+      context: context,
+      currentName: currentName,
+    );
+    if (newName == null || newName == currentName || !mounted) return;
+
+    setState(() => _isUpdatingProfile = true);
+    try {
+      final error = await ref
+          .read(authNotifierProvider.notifier)
+          .updateDisplayName(newName);
+      if (!mounted) return;
+      if (error != null) {
+        _showMessage(error);
+        return;
+      }
+      _showMessage('Имя обновлено');
+    } finally {
+      if (mounted) setState(() => _isUpdatingProfile = false);
+    }
+  }
+
+  Future<void> _changePassword() async {
+    final success = await showChangePasswordDialog(
+      context: context,
+      onSubmit: ({required currentPassword, required newPassword}) {
+        return ref.read(authNotifierProvider.notifier).changePassword(
+              currentPassword: currentPassword,
+              newPassword: newPassword,
+            );
+      },
+    );
+    if (success && mounted) {
+      _showMessage('Пароль изменён');
+    }
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    if (kPrivacyPolicyUrl.trim().isEmpty) {
+      _showMessage('Ссылка на политику пока не настроена');
+      return;
+    }
+
+    final uri = Uri.tryParse(kPrivacyPolicyUrl);
+    if (uri == null) {
+      _showMessage('Некорректная ссылка на политику');
+      return;
+    }
+
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!mounted) return;
+    if (!opened) {
+      _showMessage('Не удалось открыть ссылку');
+    }
   }
 
   @override
@@ -313,19 +368,21 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                           ListTile(
                             leading: const Icon(Icons.edit_outlined),
                             title: const Text('Изменить имя'),
-                            subtitle: const Text('Скоро доступно'),
                             trailing: const Icon(Icons.chevron_right_rounded),
-                            onTap: _showComingSoonMessage,
+                            enabled: !_isUpdatingProfile,
+                            onTap: _isUpdatingProfile
+                                ? null
+                                : () => _editDisplayName(displayName),
                           ),
                           if (hasPasswordProvider) ...[
                             const Divider(height: 1, indent: 16, endIndent: 16),
                             ListTile(
                               leading: const Icon(Icons.lock_outline_rounded),
                               title: const Text('Сменить пароль'),
-                              subtitle: const Text('Скоро доступно'),
                               trailing:
                                   const Icon(Icons.chevron_right_rounded),
-                              onTap: _showComingSoonMessage,
+                              enabled: !_isUpdatingProfile,
+                              onTap: _isUpdatingProfile ? null : _changePassword,
                             ),
                           ],
                         ],
@@ -347,6 +404,13 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                                   ?.copyWith(color: _secondaryText),
                             ),
                           ),
+                          const Divider(height: 1, indent: 16, endIndent: 16),
+                          ListTile(
+                            leading: const Icon(Icons.policy_outlined),
+                            title: const Text('Политика конфиденциальности'),
+                            trailing: const Icon(Icons.open_in_new_rounded),
+                            onTap: _openPrivacyPolicy,
+                          ),
                         ],
                       ),
                     ],
@@ -357,7 +421,9 @@ class _AccountPageState extends ConsumerState<AccountPage> {
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
               child: OutlinedButton.icon(
-                onPressed: _isSigningOut || _isSubmitting ? null : _signOut,
+                onPressed: _isSigningOut || _isSubmitting || _isUpdatingProfile
+                    ? null
+                    : _signOut,
                 icon: const Icon(Icons.logout_rounded, color: Colors.red),
                 label: const Text(
                   'Выйти',

@@ -3,6 +3,7 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pillura_med/core/course_schedule.dart';
 import 'package:pillura_med/core/notification_service.dart';
 import 'package:pillura_med/presentation/providers/repository_provider.dart';
 import '../../domain/entities/course_duration.dart';
@@ -232,7 +233,11 @@ int compareMedicationGroups(
   DateTime now,
 ) {
   int getGroupPriority(MedicationWithIntakes group) {
-    if (group.todaysIntakes.isEmpty) return 3;
+    if (group.todaysIntakes.isEmpty) {
+      // Для вкладки "Все": сначала активные курсы без приемов сегодня,
+      // затем завершенные (истекшие) курсы.
+      return isMedicationCourseActive(group.medication, now) ? 3 : 4;
+    }
 
     final hasNotTaken = group.todaysIntakes.any((i) => i.isTaken == null);
 
