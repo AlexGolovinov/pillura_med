@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pillura_med/core/app_info.dart';
+import 'package:pillura_med/core/notification_service.dart';
 import 'package:pillura_med/core/app_snackbar.dart';
 import 'package:pillura_med/core/course_schedule.dart';
 import 'package:pillura_med/core/input_limits.dart';
@@ -187,12 +188,14 @@ class _AccountPageState extends ConsumerState<AccountPage> {
         .length;
     final todayIntakes = medications.fold<int>(
       0,
-      (sum, item) => sum + item.todaysIntakes.length,
+      (sum, item) =>
+          sum + item.todaysIntakes.where((intake) => intake.isTaken == null).length,
     );
-    final wardCount = linkedUsersAsync.value
-            ?.where((link) => link.linkType == UserLinkType.ward)
-            .length ??
-        0;
+    final linkedUsers = linkedUsersAsync.value ?? const [];
+    final wardCount =
+        linkedUsers.where((link) => link.linkType == UserLinkType.ward).length;
+    final sharedCount =
+        linkedUsers.where((link) => link.linkType == UserLinkType.share).length;
 
     return Scaffold(
       appBar: AppBar(
@@ -219,11 +222,12 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                       _MiniStatsRow(
                         isLoading: medicationsAsync.isLoading ||
                             linkedUsersAsync.isLoading,
-                        showWardCount: !isWard,
+                        showLinkedStats: !isWard,
                         totalMedications: totalMedications,
                         activeMedications: activeMedications,
-                        wardCount: wardCount,
                         todayIntakes: todayIntakes,
+                        wardCount: wardCount,
+                        sharedCount: sharedCount,
                       ),
                     ],
                     if (isGuest) ...[
@@ -411,6 +415,17 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                             trailing: const Icon(Icons.open_in_new_rounded),
                             onTap: _openPrivacyPolicy,
                           ),
+                          const Divider(height: 1, indent: 16, endIndent: 16),
+                          ListTile(
+                            leading: const Icon(Icons.notifications_active_outlined),
+                            title: const Text('Проверить активные уведомления'),
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                            onTap: () async {
+                              await NotificationService.checkPendingNotifications();
+                              if (!mounted) return;
+                              _showMessage('Проверка выполнена. Подробности в логе.');
+                            },
+                          ),
                         ],
                       ),
                     ],
@@ -542,60 +557,69 @@ class _StatusBadge extends StatelessWidget {
 class _MiniStatsRow extends StatelessWidget {
   const _MiniStatsRow({
     required this.isLoading,
-    required this.showWardCount,
+    required this.showLinkedStats,
     required this.totalMedications,
     required this.activeMedications,
-    required this.wardCount,
     required this.todayIntakes,
+    required this.wardCount,
+    required this.sharedCount,
   });
 
   final bool isLoading;
-  final bool showWardCount;
+  final bool showLinkedStats;
   final int totalMedications;
   final int activeMedications;
-  final int wardCount;
   final int todayIntakes;
+  final int wardCount;
+  final int sharedCount;
+
+  Widget _statRow(List<_MiniStatTile> tiles) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < tiles.length; i++) ...[
+            if (i > 0) const SizedBox(width: 10),
+            Expanded(child: tiles[i]),
+          ],
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final tiles = <_MiniStatTile>[
-      _MiniStatTile(
-        value: isLoading ? '—' : '$totalMedications',
-        label: 'всего\nлекарств',
-      ),
-      _MiniStatTile(
-        value: isLoading ? '—' : '$activeMedications',
-        label: 'активных',
-      ),
-      if (showWardCount)
-        _MiniStatTile(
-          value: isLoading ? '—' : '$wardCount',
-          label: 'подопечных',
-        ),
-      _MiniStatTile(
-        value: isLoading ? '—' : '$todayIntakes',
-        label: 'сегодня\nк приёму',
-      ),
-    ];
+    final loadingValue = isLoading ? '—' : null;
 
     return Column(
       children: [
-        for (var i = 0; i < tiles.length; i += 2)
-          Padding(
-            padding: EdgeInsets.only(top: i > 0 ? 10 : 0),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: tiles[i]),
-                  if (i + 1 < tiles.length) ...[
-                    const SizedBox(width: 10),
-                    Expanded(child: tiles[i + 1]),
-                  ],
-                ],
-              ),
-            ),
+        _statRow([
+          _MiniStatTile(
+            value: loadingValue ?? '$totalMedications',
+            label: 'всего\nлекарств',
           ),
+          _MiniStatTile(
+            value: loadingValue ?? '$activeMedications',
+            label: 'активных\nлекарств',
+          ),
+          _MiniStatTile(
+            value: loadingValue ?? '$todayIntakes',
+            label: 'сегодня\nк приёму',
+          ),
+        ]),
+        if (showLinkedStats) ...[
+          const SizedBox(height: 10),
+          _statRow([
+            _MiniStatTile(
+              value: loadingValue ?? '$wardCount',
+              label: 'подопечных',
+            ),
+            _MiniStatTile(
+              value: loadingValue ?? '$sharedCount',
+              label: 'поделившихся',
+            ),
+          ]),
+        ],
       ],
     );
   }

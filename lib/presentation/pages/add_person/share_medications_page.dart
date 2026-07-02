@@ -47,13 +47,8 @@ class _ShareMedicationsPageState extends ConsumerState<ShareMedicationsPage> {
       body: SafeArea(
         child: linkedUsers.when(
           data: (users) {
-            final hasShareStatus = users.any(
-              (user) => user.linkType == UserLinkType.share,
-            );
             final isRestricted =
-                authUser?.isAnonymous == true ||
-                authUser?.isWard == true ||
-                hasShareStatus;
+                authUser?.isAnonymous == true || authUser?.isWard == true;
             if (isRestricted) {
               return const Center(
                 child: Text('Для этого аккаунта функция поделиться недоступна'),

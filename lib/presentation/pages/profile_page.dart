@@ -345,7 +345,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   String? _shareUnavailableReason({
     required bool isGuestMode,
     required bool isWardAccount,
-    required bool hasShareStatus,
     required bool isOwnProfileSelected,
     required bool canEditSelectedProfile,
     required UserLinkType? selectedLinkType,
@@ -355,9 +354,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
     if (isWardAccount) {
       return 'Аккаунт подопечного не может делиться списком';
-    }
-    if (hasShareStatus) {
-      return 'Недоступно: у вас только просмотр чужого профиля';
     }
     if (!isOwnProfileSelected && selectedLinkType == UserLinkType.share) {
       return 'Чужим профилем по доступу поделиться нельзя';
@@ -404,14 +400,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       _applyInitialProfileSelection(users);
       _applyPendingNotificationProfile(users);
     });
-    final hasShareStatus = linkedUsers.maybeWhen(
-      data: (users) =>
-          users.any((user) => user.linkType == UserLinkType.share),
-      orElse: () => false,
-    );
     final isGuestMode = authUser?.isAnonymous == true;
     final isWardAccount = authUser?.isWard == true;
-    final canManageSharing = !(isGuestMode || isWardAccount || hasShareStatus);
+    final canManageSharing = !(isGuestMode || isWardAccount);
     final isOwnProfileSelected = _selectedLinkedUserId == null;
     final canEditSelectedProfile =
         isOwnProfileSelected || _selectedLinkedUserCanEdit;
@@ -441,7 +432,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final shareUnavailableReason = _shareUnavailableReason(
       isGuestMode: isGuestMode,
       isWardAccount: isWardAccount,
-      hasShareStatus: hasShareStatus,
       isOwnProfileSelected: isOwnProfileSelected,
       canEditSelectedProfile: canEditSelectedProfile,
       selectedLinkType: _selectedLinkedUserType,

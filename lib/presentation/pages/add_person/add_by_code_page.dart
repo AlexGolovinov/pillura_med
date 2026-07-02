@@ -30,6 +30,8 @@ class _AddByCodePageState extends ConsumerState<AddByCodePage> {
 
   _ScanState _scanState = _ScanState.idle;
   bool _isSubmitting = false;
+  bool _isScannerActive = false;
+  bool _isScannerTransitioning = false;
   Timer? _scanTimer;
 
   @override
@@ -77,12 +79,16 @@ class _AddByCodePageState extends ConsumerState<AddByCodePage> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(14),
-                    child: isScanning
-                        ? MobileScanner(
-                            controller: _scannerController,
-                            onDetect: _onDetect,
-                          )
-                        : _buildScanPlaceholder(theme),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        MobileScanner(
+                          controller: _scannerController,
+                          onDetect: _onDetect,
+                        ),
+                        if (!isScanning) _buildScanPlaceholder(theme),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -144,26 +150,36 @@ class _AddByCodePageState extends ConsumerState<AddByCodePage> {
   }
 
   Widget _buildScanPlaceholder(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.qr_code_scanner_rounded, size: 64, color: Color(0xFF202D85)),
-          const SizedBox(height: 8),
-          Text(
-            'Скан',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: const Color(0xFF202D85),
-              fontWeight: FontWeight.w700,
+    return Container(
+      color: const Color(0xFFF4F6FF),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.qr_code_scanner_rounded,
+              size: 64,
+              color: Color(0xFF202D85),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              'Сканировать QR-код',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: const Color(0xFF202D85),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Future<void> _startScan() async {
-    if (_scanState == _ScanState.scanning || _isSubmitting) {
+    if (_scanState == _ScanState.scanning ||
+        _isSubmitting ||
+        _isScannerTransitioning) {
       return;
     }
 
@@ -171,9 +187,8 @@ class _AddByCodePageState extends ConsumerState<AddByCodePage> {
       _scanState = _ScanState.scanning;
     });
 
-    try {
-      await _scannerController.start();
-    } catch (_) {
+    final started = await _startScannerSafely();
+    if (!started) {
       if (!mounted) return;
       setState(() {
         _scanState = _ScanState.scanFailed;
@@ -272,9 +287,41 @@ class _AddByCodePageState extends ConsumerState<AddByCodePage> {
   Future<void> _stopScanner() async {
     _scanTimer?.cancel();
     _scanTimer = null;
+
+    if (_isScannerTransitioning || !_isScannerActive) {
+      return;
+    }
+
+    _isScannerTransitioning = true;
     try {
       await _scannerController.stop();
-    } catch (_) {}
+    } on PlatformException catch (e) {
+      // Плагин может вернуть эту ошибку при гонке start/stop.
+      if (!(e.message?.contains('No active stream to cancel') ?? false)) {
+        rethrow;
+      }
+    } finally {
+      _isScannerActive = false;
+      _isScannerTransitioning = false;
+    }
+  }
+
+  Future<bool> _startScannerSafely() async {
+    if (_isScannerActive || _isScannerTransitioning) {
+      return _isScannerActive;
+    }
+
+    _isScannerTransitioning = true;
+    try {
+      await _scannerController.start();
+      _isScannerActive = true;
+      return true;
+    } catch (_) {
+      _isScannerActive = false;
+      return false;
+    } finally {
+      _isScannerTransitioning = false;
+    }
   }
 
   String _errorToMessage(dynamic error) {
